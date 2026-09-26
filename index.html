@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05040a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hoja Carmesí">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Hoja Carmesí — Ecos del Abismo (prototipo)</title>
+<link rel="stylesheet" href="css/touch.css">
+<style>
+  html,body{margin:0;height:100%;background:#05040a;overflow:hidden}
+  canvas#screen{display:block;position:absolute;left:0;top:0;image-rendering:pixelated;image-rendering:crisp-edges}
+</style>
+<script>
+  // El manifiesto solo se enlaza por http(s): con file:// provocaría un error de CORS en consola
+  if (location.protocol.indexOf('http') === 0) {
+    var l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
+  }
+</script>
+</head>
+<body>
+<script>
+  // Detectar táctil antes de que main.js calcule la escala
+  if (('ontouchstart' in window) || navigator.maxTouchPoints > 0 || (window.matchMedia && matchMedia('(pointer: coarse)').matches))
+    document.body.classList.add('touch');
+</script>
+<canvas id="screen"></canvas>
+<div id="touch-ui" aria-hidden="true">
+  <div id="stick"><div id="stick-knob"></div></div>
+  <div class="tbtn" id="btn-heal" data-action="heal"><span>CURAR</span></div>
+  <div class="tbtn" id="btn-dash" data-action="dash"><span>DASH</span></div>
+  <div class="tbtn" id="btn-attack" data-action="attack"><span>ATACAR</span></div>
+  <div class="tbtn" id="btn-jump" data-action="jump"><span>SALTAR</span></div>
+  <div class="tbtn" id="btn-pause" data-action="pause"><span>❚❚</span></div>
+</div>
+<div id="rotate"><div class="phone"></div><p>Gira tu teléfono</p><small>Hoja Carmesí se juega en horizontal</small></div>
+<script src="js/input.js"></script>
+<script src="js/world.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/player.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/main.js"></script>
+<script src="js/touch.js"></script>
+</body>
+</html>
