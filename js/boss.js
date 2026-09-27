@@ -10,14 +10,14 @@ class Boss extends Enemy {
   }
   hurt(dmg, player, type) {
     if (this.state === 'dormant' || this.state === 'intro' || this.state === 'dying') return;
-    this.hp -= dmg; this.flashT = 0.1;
+    this.hp -= dmg; this.flashT = 0.1; sfx('hit');
     if (!this.phase2 && this.hp <= this.maxHp / 2) {
       this.phase2 = true; this.set('roar'); FX.shake(6, 0.6);
       FX.ring(this.cx, this.cy, '#ff3a5c', 50);
     }
     if (this.hp <= 0) { this.hp = 0; this.set('dying'); Game.bossDefeated(this); }
   }
-  set(s) { this.state = s; this.st = 0; this.fired = false; }
+  set(s) { this.state = s; this.st = 0; this.fired = false; if (s.endsWith('Tel')) sfx('tel'); else if (s === 'roar') sfx('roar'); }
   get arenaL() { return this.room.px + 3 * TILE; }
   get arenaR() { return this.room.px + (this.room.w - 1) * TILE; }
   update(dt, game) {
@@ -103,7 +103,7 @@ class Boss extends Enemy {
             const a = base + (i - (n - 1) / 2) * spread;
             game.hazards.push(new Orb(ox, oy, Math.cos(a) * 140 * spd, Math.sin(a) * 140 * spd));
           }
-          FX.ring(ox, oy, '#ff5ab0', 16); FX.shake(2, 0.1);
+          FX.ring(ox, oy, '#ff5ab0', 16); FX.shake(2, 0.1); sfx('shoot');
         }
         if (this.st > 1.1 / spd) this.set('idle');
         break;

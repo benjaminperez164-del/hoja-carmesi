@@ -105,7 +105,7 @@ class BreakWall {
   }
   get cx() { return this.x + this.w / 2; }
   hurt(dmg, player) {
-    this.hp -= 1; this.flashT = 0.1; FX.shake(2, 0.1);
+    this.hp -= 1; this.flashT = 0.1; FX.shake(2, 0.1); sfx('hit');
     FX.burst(this.cx, player.cy, 8, { colors: ['#a8804e', '#e6c48a', OUTLINE], speed: 110 });
     if (this.hp <= 0) { this.dead = true; Game.breakWall(this); }
   }
@@ -132,7 +132,7 @@ class Shielder extends Enemy {
       this.shieldFlash = 0.15;
       FX.burst(this.cx + this.facing * 8, this.cy, 10, { colors: ['#ffffff', '#bff6ff', '#ffe28a'], speed: 150, grav: 0, life: 0.25 });
       player.recoilT = 0.14; player.recoilV = -player.facing * 190;
-      FX.stop(3);
+      FX.stop(3); sfx('block');
       return false;   // bloqueado
     }
     super.hurt(dmg, player, type);
@@ -199,7 +199,7 @@ class Turret extends Enemy {
       if (this.tel <= 0) {
         const ox = this.cx + this.facing * 6, oy = this.y + 6;
         const a = Math.atan2(p.cy - oy, p.cx - ox);
-        game.hazards.push(new Seed(ox, oy, Math.cos(a) * 125, Math.sin(a) * 125));
+        game.hazards.push(new Seed(ox, oy, Math.cos(a) * 125, Math.sin(a) * 125)); sfx('shoot');
         this.cd = 2.2;
       }
     } else if ((this.cd -= dt) <= 0 && d < 230 && p.hp > 0) this.tel = 0.55;
@@ -280,19 +280,20 @@ class Herald extends Enemy {
     this.state = 'dormant'; this.st = 0; this.facing = -1; this.last = null; this.phase2 = false; this.fly = false;
     this.deathColors = ['#ffb020', '#ffffff', '#fff4c0']; this.contact = 1; this.homeY = this.y;
   }
-  get floorY() { return this.room.py + 15 * TILE; }
-  get arenaL() { return this.room.px + 3 * TILE; }
+  get floorY() { return this.room.py + (this.room.floorRow || 15) * TILE; }
+  // sin repisa de entrada: la arena llega hasta la pared izquierda (ningún rincón queda fuera del picado)
+  get arenaL() { return this.room.px + (this.room.floorRow ? 1 : 3) * TILE; }
   get arenaR() { return this.room.px + 31 * TILE; }
   hurt(dmg, player, type) {
     if (this.state === 'dormant' || this.state === 'intro' || this.state === 'dying' || this.state === 'diveUp' || this.state === 'diveMark') return false;
-    this.hp -= dmg; this.flashT = 0.1;
+    this.hp -= dmg; this.flashT = 0.1; sfx('hit');
     if (!this.phase2 && this.hp <= this.maxHp / 2) {
       this.phase2 = true; this.set('roar'); FX.shake(6, 0.6); FX.ring(this.cx, this.cy, '#ffb020', 50);
       Game.hazards = Game.hazards.filter(h => !(h instanceof Feather));
     }
     if (this.hp <= 0) { this.hp = 0; this.set('dying'); Game.bossDefeated(this); }
   }
-  set(s) { this.state = s; this.st = 0; this.fired = 0; }
+  set(s) { this.state = s; this.st = 0; this.fired = 0; if (s.endsWith('Tel')) sfx('tel'); else if (s === 'roar') sfx('roar'); }
   update(dt, game) {
     const p = game.player;
     this.t += dt; this.st += dt; if (this.flashT > 0) this.flashT -= dt;
@@ -370,7 +371,7 @@ class Herald extends Enemy {
             const a = base + (i - (n - 1) / 2) * spread + (this.fired % 2 ? spread / 2 : 0);
             game.hazards.push(new Feather(ox, oy, Math.cos(a) * 150, Math.sin(a) * 150));
           }
-          FX.ring(ox, oy, '#ffb020', 18); this.fired++;
+          FX.ring(ox, oy, '#ffb020', 18); this.fired++; sfx('shoot');
         }
         if (this.st > 0.7 / spd + (this.phase2 ? 1.4 : 0.9)) this.set('fall');
         break;
@@ -382,7 +383,8 @@ class Herald extends Enemy {
         this.vx = 0; face();
         if (!this.fired) {
           this.fired = 1;
-          const xs = [p.cx, p.cx - 72, p.cx + 72, this.phase2 && Math.random() < 0.5 ? p.cx + 144 : p.cx - 144];
+          sfx('beam');
+        const xs = [p.cx, p.cx - 72, p.cx + 72, this.phase2 && Math.random() < 0.5 ? p.cx + 144 : p.cx - 144];
           for (const x of xs) if (x > this.arenaL && x < this.arenaR) game.hazards.push(new SunPillar(x, this.room.py, this.floorY, 0.85));
         }
         if (this.st > 1.5) this.set('idle');
@@ -404,7 +406,7 @@ class Herald extends Enemy {
     if (this.state === 'dive') {
       this.y += this.vy * dt;
       if (this.y + this.h >= this.floorY) {
-        this.y = this.floorY - this.h; this.set('diveLand'); FX.shake(7, 0.3); FX.stop(3);
+        this.y = this.floorY - this.h; this.set('diveLand'); FX.shake(7, 0.3); FX.stop(3); sfx('boom');
         FX.burst(this.cx, this.floorY, 18, { colors: ['#fff4c0', '#ffb020', '#ffffff'], speed: 150, angle: -Math.PI / 2, spread: 2.6 });
         if (this.phase2) { game.hazards.push(new Shockwave(this.cx, this.floorY, -1, 1), new Shockwave(this.cx, this.floorY, 1, 1)); }
       }

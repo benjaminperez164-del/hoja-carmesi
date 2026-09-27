@@ -10,13 +10,14 @@ class Enemy {
   get cy() { return this.y + this.h / 2; }
   hurt(dmg, player, type) {
     this.hp -= dmg; this.flashT = 0.12;
+    if (this.hp > 0) sfx('hit');
     const dir = type === 'down' ? 0 : Math.sign(this.cx - player.cx) || player.facing;
     this.knockback(dir, type);
     if (this.hp <= 0) this.die();
   }
   knockback(dir) { this.vx = dir * 140; this.knockT = 0.15; }
   die() {
-    this.dead = true;
+    this.dead = true; sfx('kill');
     FX.burst(this.cx, this.cy, 22, { colors: this.deathColors || ['#ff9a3c', '#ffffff', '#3a2f4a'], speed: 170, life: 0.55 });
     FX.ring(this.cx, this.cy, '#ffd28a', 22);
     FX.shake(3, 0.15);
@@ -44,6 +45,7 @@ class Walker extends Enemy {
     if (this.hitWallL) this.dir = 1; if (this.hitWallR) this.dir = -1;
   }
   draw(ctx) {
+    if (this.crystal) return drawOutlined(ctx, c => this.drawCrystal(ctx, c), this.flashT > 0);
     if (this.day) return drawOutlined(ctx, c => this.drawDay(ctx, c), this.flashT > 0);
     const x = Math.round(this.x), y = Math.round(this.y), f = this.flashT > 0;
     const step = Math.floor(this.t * 8) % 2;
@@ -71,6 +73,17 @@ Walker.prototype.drawDay = function (ctx, c) {
   R('#a8641a', 4, 5, 1, 5); R('#a8641a', 8, 5, 1, 5); R('#a8641a', 12, 5, 1, 5);
   const hx = this.dir > 0 ? 13 : -1;
   R('#6a3a1a', hx, 6, 4, 5); R('#ff3a2a', this.dir > 0 ? hx + 2 : hx, 7, 2, 2);
+};
+
+// Variante del templo: escarabajo de amatista
+Walker.prototype.drawCrystal = function (ctx, c) {
+  const x = Math.round(this.x), y = Math.round(this.y), step = Math.floor(this.t * 8) % 2;
+  const R = (col, a, b, w, h) => { ctx.fillStyle = c(col); ctx.fillRect(x + a, y + b, w, h); };
+  R('#2a2050', 2 + step, this.h - 3, 3, 3); R('#2a2050', 10 - step, this.h - 3, 3, 3);
+  R('#9a5ae0', 1, 3, 14, 8); R('#9a5ae0', 3, 1, 10, 2); R('#e0c0ff', 3, 2, 8, 2);
+  R('#6a2ab0', 4, 5, 1, 5); R('#6a2ab0', 8, 5, 1, 5); R('#6a2ab0', 12, 5, 1, 5);
+  const hx = this.dir > 0 ? 13 : -1;
+  R('#4a2a80', hx, 6, 4, 5); R('#ffd24a', this.dir > 0 ? hx + 2 : hx, 7, 2, 2);
 };
 
 // Zumbador: volador que persigue

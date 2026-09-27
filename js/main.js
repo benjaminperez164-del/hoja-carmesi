@@ -41,6 +41,7 @@ function shade(hex, k) {
 }
 function renderRoomTiles(room) {
   if (room.theme === 'day') return renderDayTiles(room);
+  if (room.theme === 'crystal') return renderCrystalTiles(room);
   const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
   const g = c.getContext('2d');
   const base = room.tint;
@@ -133,6 +134,57 @@ function renderDayTiles(room) {
   room.canvas = c;
 }
 
+// Paleta del templo: piedra azul pizarra con contorno marino, remate dorado y cristales; alto contraste con el fondo claro
+function renderCrystalTiles(room) {
+  const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
+  const g = c.getContext('2d');
+  const OL = '#16203a';
+  const isSolid = (x, y) => World.tileAt(x, y) === T_SOLID && !(World.roomAtTile(x, y) || {}).phaseKeys?.has((x - World.roomAtTile(x, y).ox) + ',' + (y - World.roomAtTile(x, y).oy));
+  for (let y = 0; y < room.h; y++) for (let x = 0; x < room.w; x++) {
+    const t = room.grid[y][x], px = x * TILE, py = y * TILE, wx = x + room.ox, wy = y + room.oy;
+    if (room.phaseKeys.has(x + ',' + y)) continue;          // bloques de fase: se dibujan en vivo
+    if (t === T_SOLID) {
+      const r = hash(wx, wy);
+      g.fillStyle = r > 0.5 ? '#5f73a8' : '#5a6ea2'; g.fillRect(px, py, TILE, TILE);
+      g.fillStyle = '#4a5c8e';
+      g.fillRect(px, py + 7, TILE, 1);
+      g.fillRect(px + ((wy % 2) ? 5 : 11), py, 1, 7); g.fillRect(px + ((wy % 2) ? 12 : 3), py + 8, 1, 8);
+      g.fillStyle = '#8ea4d8'; g.fillRect(px + ((wy % 2) ? 1 : 6), py + 1, 3, 1);
+      if (r > 0.84) { g.fillStyle = '#9fe6ff'; g.fillRect(px + 9, py + 9, 2, 4); g.fillStyle = '#ffffff'; g.fillRect(px + 9, py + 9, 1, 2); }
+      const up = isSolid(wx, wy - 1), dn = isSolid(wx, wy + 1), lf = isSolid(wx - 1, wy), rt = isSolid(wx + 1, wy);
+      g.fillStyle = OL;
+      if (!up) g.fillRect(px, py, TILE, 1);
+      if (!dn) g.fillRect(px, py + TILE - 2, TILE, 2);
+      if (!lf) g.fillRect(px, py, 2, TILE);
+      if (!rt) g.fillRect(px + TILE - 2, py, 2, TILE);
+      if (!up) {
+        g.fillStyle = '#e8f0ff'; g.fillRect(px, py + 1, TILE, 4);
+        g.fillStyle = '#ffd24a'; g.fillRect(px, py + 5, TILE, 1);
+        g.fillStyle = '#ffffff'; g.fillRect(px, py + 1, TILE, 1);
+        if (r > 0.72) { g.fillStyle = OL; g.fillRect(px + 5, py - 5, 5, 5); g.fillStyle = r > 0.86 ? '#ff9ae0' : '#9fe6ff'; g.fillRect(px + 6, py - 4, 3, 4); g.fillStyle = '#ffffff'; g.fillRect(px + 6, py - 4, 1, 2); }
+        if (!lf) { g.fillStyle = OL; g.fillRect(px, py, 2, 6); }
+        if (!rt) { g.fillStyle = OL; g.fillRect(px + TILE - 2, py, 2, 6); }
+      }
+    } else if (t === T_SPIKE) {
+      // púas de cristal: cian/magenta con contorno oscuro
+      g.fillStyle = OL; g.fillRect(px, py + 11, TILE, 5);
+      for (let i = 0; i < 4; i++) {
+        const sx = px + i * 4;
+        g.fillStyle = OL; g.beginPath(); g.moveTo(sx - 0.5, py + 13); g.lineTo(sx + 2, py + 2); g.lineTo(sx + 4.5, py + 13); g.fill();
+        g.fillStyle = i % 2 ? '#ff5ad0' : '#3ad8ff'; g.beginPath(); g.moveTo(sx + 0.5, py + 13); g.lineTo(sx + 2, py + 4); g.lineTo(sx + 3.5, py + 13); g.fill();
+        g.fillStyle = '#ffffff'; g.fillRect(sx + 2, py + 5, 1, 3);
+      }
+    } else if (t === T_PLAT) {
+      g.fillStyle = OL; g.fillRect(px, py, TILE, 7);
+      g.fillStyle = '#c8d8ff'; g.fillRect(px, py + 1, TILE, 4);
+      g.fillStyle = '#ffffff'; g.fillRect(px, py + 1, TILE, 1);
+      g.fillStyle = '#ffd24a'; g.fillRect(px, py + 4, TILE, 1);
+      g.fillStyle = OL; g.fillRect(px + 3, py + 7, 2, 3); g.fillRect(px + 11, py + 7, 2, 3);
+    }
+  }
+  room.canvas = c;
+}
+
 // ---------- Guardado (localStorage) ----------
 const SAVE_KEY = 'hojaCarmesi.save.v1';
 const Save = {
@@ -140,14 +192,25 @@ const Save = {
   write(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
   clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
 };
-const ENEMY_TYPES = ['walker', 'flyer', 'shield', 'turret'];
+const ENEMY_TYPES = ['walker', 'flyer', 'shield', 'turret', 'prisma', 'moth'];
+// Objetos recogibles (una vez por partida; la clave se guarda en «secrets»)
+const PICKUPS = {
+  shard: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard2: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard3: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  cristal: { msg: '¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', col: '#ffb020' },
+  vasija: { msg: '¡Vasija de Energía! Curar cuesta menos energía (4 curas con el orbe lleno)', col: '#7ad8ff' },
+  celeste: { msg: '', col: '#9fe6ff', ability: true },
+};
+const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3'];
+const LEVEL_NAMES = { 1: 'Reino Hueco', 2: 'Cumbres del Alba', 3: 'Templo de Cristal' };
 
 // ---------- Estado del juego ----------
 const Game = {
   state: 'title', t: 0, player: new Player(), enemies: [], hazards: [], objs: [], boss: null,
   cam: { x: 0, y: 0 }, room: null, banner: null, toasts: [], fade: 0, fadeDir: 0,
   respawn: { room: 'santuario', tx: 14, ty: 15 }, beaten: {}, secrets: new Set(), killed: new Set(),
-  dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0,
+  dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0, clearLevel: 1, phaseSet: 'a', abilityT: 0,
   flashHud: 0, deadT: 0, victoryT: 0, playTime: 0, timeScale: 1, slowT: 0, titleT: 0,
 
   hittables() {
@@ -162,10 +225,12 @@ const Game = {
     const p = this.player;
     p.soulGain = this.secrets.has('cristal') ? 17 : P.SOUL_HIT;
     p.healTime = this.secrets.has('cristal') ? 0.62 : P.HEAL_T;
+    p.healCost = this.secrets.has('vasija') ? 24 : P.HEAL_COST;
+    p.hasDouble = this.secrets.has('celeste');
   },
   saveGame() {
     const ok = Save.write({
-      v: 1, level: this.level, respawn: this.respawn, maxHp: this.player.maxHp,
+      v: 1, ver: 2, level: this.level, respawn: this.respawn, maxHp: this.player.maxHp,
       secrets: [...this.secrets], beaten: this.beaten, playTime: this.playTime,
       visited: World.rooms.filter(r => r.visited).map(r => r.id),
     });
@@ -176,6 +241,9 @@ const Game = {
     this.player = new Player();
     this.player.maxHp = d.maxHp || 5;
     this.beaten = Object.assign({}, d.beaten || {}); this.secrets = new Set(d.secrets || []);
+    // Migración de partidas antiguas: quien ya venció al Heraldo recibe el Salto Celeste
+    if (this.beaten.heraldo && !this.secrets.has('celeste')) this.secrets.add('celeste');
+    if (d.completed && !this.beaten.oraculo) delete d.completed;
     this.killed = new Set(); this.playTime = d.playTime || 0;
     World.rooms.forEach(r => { r.visited = (d.visited || []).includes(r.id); });
     this.restoreWalls();
@@ -184,6 +252,7 @@ const Game = {
     this.spawnAtRespawn();
     this.state = 'play';
     this.toast('Partida cargada: ' + World.byId[this.respawn.room].name, 3);
+    if (this.secrets.has('celeste') && !(d.secrets || []).includes('celeste')) { this.toast('Has obtenido el Salto Celeste: salta de nuevo en el aire', 4); this.saveGame(); }
   },
   // Aplica/revierte muros secretos rotos en la rejilla de las salas
   restoreWalls() {
@@ -198,7 +267,7 @@ const Game = {
     this.secrets.add(w.id);
     this.restoreWalls();
     FX.burst(w.x + w.w / 2, w.y + w.h / 2, 30, { colors: ['#a57c55', '#e6c48a', '#241610'], speed: 160, life: 0.7 });
-    FX.shake(5, 0.3); FX.stop(6);
+    FX.shake(5, 0.3); FX.stop(6); sfx('crumble');
     this.toast('¡Un pasaje oculto!', 2.5);
   },
   openTitle() {
@@ -208,6 +277,7 @@ const Game = {
   },
   menuAction(item) {
     const m = this.menu;
+    sfx('select');
     if (m.confirm) {
       if (item === 'yes') { Save.clear(); this.newGame(); }
       else m.confirm = null;
@@ -224,7 +294,17 @@ const Game = {
     return m.items.map((id, i) => ({ id, label: labels[id], x: 327 - total / 2 + i * (w + gap), y: 226, w, h: 18 }));
   },
   // Toque / clic en coordenadas lógicas (480x272)
+  soundButton() { return { x: 6, y: 6, w: 78, h: 14 }; },
+  onSoundButton(lx, ly) { const b = this.soundButton(); return lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4; },
+  drawSoundButton(g) {
+    const b = this.soundButton(), m = Sound.muted;
+    g.fillStyle = 'rgba(8,6,16,0.75)'; g.fillRect(b.x, b.y, b.w, b.h);
+    g.strokeStyle = m ? 'rgba(255,255,255,0.4)' : '#9fe6ff'; g.lineWidth = 0.7; g.strokeRect(b.x, b.y, b.w, b.h);
+    g.font = 'bold 7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = m ? '#a898c8' : '#e8fbff';
+    g.fillText((m ? '✕ ' : '♪ ') + 'Sonido: ' + (m ? 'No' : 'Sí') + '  (M)', b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+  },
   menuTap(lx, ly) {
+    if ((this.state === 'title' || this.state === 'pause') && this.onSoundButton(lx, ly)) { Sound.toggle(); return true; }
     if (this.state !== 'title' || !this.menu) return false;
     for (const b of this.menuButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 6 && ly <= b.y + b.h + 6) { this.menuAction(b.id); return true; }
     if (!this.menu.confirm && this.menu.items.length === 1) { this.menuAction(this.menu.items[0]); return true; }
@@ -270,23 +350,31 @@ const Game = {
     this.room = World.cur = room;
     this.enemies = []; this.hazards = []; this.objs = []; this.boss = null;
     this.roomT = 0;
-    this.dyn = World.dyn = room.movers.map(d => new Mover(room, d)).concat(room.crumbles.map(d => new Crumble(room, d)));
+    this.dyn = World.dyn = room.movers.map(d => new Mover(room, d)).concat(room.crumbles.map(d => new Crumble(room, d)), room.blinks.map(d => new Blink(room, d)));
+    this.setPhase('a', room);
     this.dyn.forEach(d => d.update && d.kind === 'mover' && d.update(0, 0));
     this.winds = room.winds.map(d => new Wind(room, d));
     this.props = room.walls.filter(w => !this.secrets.has(w.id)).map(w => new BreakWall(room, w));
+    for (const d of room.beams) this.hazards.push(new Beam(room, d));
+    // Salvaguarda: en el Nivel 3 siempre se tiene el Salto Celeste si el Heraldo fue vencido
+    if (room.level === 3 && this.beaten.heraldo && !this.secrets.has('celeste')) { this.secrets.add('celeste'); this.applyUpgrades(); this.toast('Salto Celeste: pulsa SALTAR otra vez en el aire', 4); }
     this.player.plat = null;
     room.objs.forEach((o, idx) => {
       const x = room.px + o.tx * TILE, y = room.py + o.ty * TILE;
       const kid = room.id + ':' + idx;
       // los enemigos muertos no vuelven (salvo al descansar en un banco)
       if (ENEMY_TYPES.includes(o.type) && (this.killed.has(kid) || (window.GAME && window.GAME.noEnemies))) return;
-      const add = e => { e.kid = kid; e.day = !!o.day || room.theme === 'day'; this.enemies.push(e); };
+      const add = e => { e.kid = kid; e.day = !!o.day || room.theme !== 'night'; e.crystal = room.theme === 'crystal'; this.enemies.push(e); };
       if (o.type === 'walker') add(new Walker(x, y));
       else if (o.type === 'flyer') add(new Flyer(x, y));
       else if (o.type === 'shield') add(new Shielder(x, y));
       else if (o.type === 'turret') add(new Turret(x, y));
-      else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = o.boss === 'heraldo' ? new Herald(x, y, room) : new Boss(x, y, room);
-      else if ((o.type === 'shard' || o.type === 'cristal') && !this.secrets.has(o.type)) this.objs.push({ type: o.type, x: x - 5, y: y - 14, w: 10, h: 12, hit: { x: x - 10, y: y - 26, w: 20, h: 26 } });
+      else if (o.type === 'prisma') add(new Prisma(x, y));
+      else if (o.type === 'moth') add(new Moth(x, y));
+      else if (o.type === 'switch') this.props.push(new CrystalSwitch(x, y));
+      else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = o.boss === 'heraldo' ? new Herald(x, y, room) : o.boss === 'oraculo' ? new Oracle(x, y, room) : new Boss(x, y, room);
+      else if (o.type === 'celeste') { if (this.beaten.heraldo && !this.secrets.has('celeste')) this.objs.push(this.makePickup(o.type, x, y)); }
+      else if (PICKUPS[o.type] && !this.secrets.has(o.type)) this.objs.push(this.makePickup(o.type, x, y));
       else if (o.type === 'bench') this.objs.push({ type: 'bench', x: x - 12, y: y - 10, w: 24, h: 10, tx: o.tx, ty: o.ty });
       else if (o.type === 'sign') this.objs.push({ type: 'sign', x: x - 4, y: y - 14, w: 8, h: 14, text: o.text });
     });
@@ -294,23 +382,75 @@ const Game = {
     room.visited = true;
     if (snap) this.snapCam();
   },
+  makePickup(type, x, y) { return { type, x: x - 5, y: y - 14, w: 10, h: 12, hit: { x: x - 10, y: y - 26, w: 20, h: 26 } }; },
+  // Bloques de fase (Nivel 3): la fase activa es sólida; al volverse sólido espera a que el jugador no esté dentro
+  setPhase(s, room) {
+    room = room || this.room; this.phaseSet = s;
+    for (const b of room.phases) { b.want = b.set === s; if (!b.want) this.fillPhase(room, b, T_EMPTY); }
+    this.updatePhases(room);
+  },
+  togglePhase() { this.setPhase(this.phaseSet === 'a' ? 'b' : 'a'); },
+  fillPhase(room, b, t) { for (let j = b.y; j < b.y + b.h; j++) for (let i = b.x; i < b.x + b.w; i++) room.grid[j][i] = t; b.solid = t === T_SOLID; },
+  updatePhases(room) {
+    room = room || this.room; const p = this.player;
+    for (const b of room.phases) if (b.want && !b.solid) {
+      const bx = room.px + b.x * TILE, by = room.py + b.y * TILE;
+      if (!aabb(p, { x: bx, y: by, w: b.w * TILE, h: b.h * TILE })) this.fillPhase(room, b, T_SOLID);
+    }
+  },
+  drawPhases(r) {
+    for (const b of r.phases) {
+      const x = r.px + b.x * TILE, y = r.py + b.y * TILE, w = b.w * TILE, h = b.h * TILE;
+      const gold = b.set === 'a';
+      if (b.solid) {
+        ctx.fillStyle = '#16203a'; ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = gold ? '#ffc83a' : '#3ad8ff'; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+        ctx.fillStyle = gold ? '#fff0b0' : '#d8f8ff'; ctx.fillRect(x + 1, y + 1, w - 2, 2);
+        ctx.fillStyle = gold ? '#c08a10' : '#1a8ac0';
+        for (let i = 0; i < b.w; i++) for (let j = 0; j < b.h; j++) ctx.fillRect(x + i * TILE + 6, y + j * TILE + 6, 4, 4);
+      } else {
+        ctx.strokeStyle = gold ? 'rgba(200,140,20,0.6)' : 'rgba(30,140,200,0.6)'; ctx.setLineDash([3, 3]);
+        ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3); ctx.setLineDash([]);
+      }
+    }
+  },
   startBoss(b) {
     this.room.doors.forEach(d => { if (d.kind === 'lock') d.active = true; });
+    sfx('doorLock');
     this.banner = { text: b.name, t: 0, boss: true };
     FX.burst(this.room.px + 8, this.room.py + 10 * TILE, 20, { colors: ['#ff3a5c', '#ffffff'], speed: 100, grav: 0 });
   },
   bossDefeated(b) {
     // El jefe queda derrotado desde ya: aunque algo golpeara al jugador durante la animación, no se reinicia
     this.beaten[b.key || 'guardian'] = true; this.slowT = 1.8;
-    this.hazards = []; this.player.invulnT = 99;
+    this.hazards = this.hazards.filter(h => h.persistent); this.player.invulnT = 99;
     this.syncDoors();
     this.saveGame();
+    sfx('bossDie'); setTimeout(() => sfx('doorOpen'), 700);
   },
   victory(b) {
     this.player.invulnT = 0;
     this.syncDoors();
-    if ((b && b.key) === 'heraldo') { this.state = 'victory'; this.victoryT = 0; Save.write(Object.assign(Save.load() || {}, { v: 1, completed: true })); }
-    else { this.state = 'levelclear'; this.clearT = 0; }
+    const key = b && b.key;
+    if (key === 'oraculo') { this.state = 'victory'; this.victoryT = 0; Save.write(Object.assign(Save.load() || {}, { v: 1, completed: true })); }
+    else {
+      this.state = 'levelclear'; this.clearT = 0; this.clearLevel = key === 'heraldo' ? 2 : 1;
+      // la pluma del Heraldo cae en la arena
+      if (key === 'heraldo' && !this.secrets.has('celeste')) {
+        const o = this.room.objs.find(o => o.type === 'celeste');
+        if (o) this.objs.push(this.makePickup('celeste', this.room.px + o.tx * TILE, this.room.py + o.ty * TILE));
+      }
+    }
+  },
+  musicName() {
+    const s = this.state;
+    if (s === 'title') return 'title';
+    if (s === 'victory') return 'victory';
+    if (s === 'levelclear' || s === 'ability') return 'clear';
+    const b = this.boss;
+    if (b && b.state !== 'dormant' && b.state !== 'dying' && !b.dead) return 'boss' + this.level;
+    if (this.slowT > 0 || (b && b.state === 'dying')) return null;
+    return ({ 1: 'cave', 2: 'dawn', 3: 'crystal' })[this.level] || 'cave';
   },
   playerDied() { this.state = 'dying'; this.deadT = 0; FX.shake(6, 0.5); },
   toast(text, t) { this.toasts.push({ text, t: 0, life: t || 2.5 }); if (this.toasts.length > 3) this.toasts.shift(); },
@@ -333,8 +473,8 @@ const Game = {
       const m = this.menu, btns = this.menuButtons();
       const cur = m.confirm ? m.confirm : m;
       const n = btns.length;
-      if (Input.pressed('up') || Input.pressed('left')) cur.sel = (cur.sel + n - 1) % n;
-      if (Input.pressed('down') || Input.pressed('right')) cur.sel = (cur.sel + 1) % n;
+      if (Input.pressed('up') || Input.pressed('left')) { cur.sel = (cur.sel + n - 1) % n; sfx('move'); }
+      if (Input.pressed('down') || Input.pressed('right')) { cur.sel = (cur.sel + 1) % n; sfx('move'); }
       if (m.confirm && Input.pressed('pause')) m.confirm = null;
       else if (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.menuAction(btns[cur.sel].id);
       return;
@@ -342,8 +482,14 @@ const Game = {
     if (this.state === 'levelclear') {
       this.clearT += dt; FX.update(dt);
       if ((this.clearT > 1.5 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.clearT > 6) {
-        this.state = 'play'; this.toast('Se ha abierto un camino al este: Cumbres del Alba', 4);
+        this.state = 'play';
+        this.toast(this.clearLevel === 2 ? 'Recoge la pluma del Heraldo. Al este: Templo de Cristal' : 'Se ha abierto un camino al este: Cumbres del Alba', 4);
       }
+      return;
+    }
+    if (this.state === 'ability') {
+      this.abilityT += dt; FX.update(dt);
+      if ((this.abilityT > 1.2 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.abilityT > 8) { this.state = 'play'; this.player.jumpBuf = 0; }
       return;
     }
     if (this.state === 'pause') { if (Input.pressed('pause') || Input.pressed('start')) this.state = 'play'; return; }
@@ -372,6 +518,8 @@ const Game = {
     const p = this.player;
     this.roomT += dt;
     for (const d of this.dyn) d.update(dt, this.roomT, p);
+    if (this.room.phases.length) this.updatePhases();
+    for (const w of this.props) if (w.update) w.update(dt);
     if (p.plat && p.plat.solid && p.spikeT <= 0) { p.x += p.plat.dx; p.y += p.plat.dy; }
     p.inWind = false;
     if (p.spikeT <= 0 && !p.sitting) for (const w of this.winds) w.apply(p, dt);
@@ -385,20 +533,20 @@ const Game = {
         this.respawn = { room: this.room.id, tx: o.tx, ty: o.ty };
         this.killed.clear();                      // descansar revive a los enemigos (estilo Hollow Knight)
         this.enterRoom(this.room, false); p.sitting = true;
-        const saved = this.saveGame();
+        const saved = this.saveGame(); sfx('bench');
         FX.ring(p.cx, p.cy, '#ffd28a', 34); FX.burst(p.cx, p.cy, 18, { colors: ['#ffd28a', '#ffffff'], speed: 90, grav: -30 });
         this.toast(saved ? 'Descansas en el banco. Salud restaurada y progreso guardado.' : 'Descansas en el banco. (No se pudo guardar)', 3);
       }
-      if (o.type === 'cristal' && !o.taken && aabb(p, o.hit || o)) {
-        o.taken = true; this.secrets.add('cristal'); this.applyUpgrades();
-        p.soul = 99;
-        FX.ring(o.x + 5, o.y + 6, '#ffb020', 44); FX.burst(o.x + 5, o.y + 6, 30, { colors: ['#ffb020', '#ffffff', '#fff4c0'], speed: 150, grav: 0 }); FX.stop(10);
-        this.toast('¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', 4); this.flashHud = 0.6;
-      }
-      if (o.type === 'shard' && !o.taken && aabb(p, o.hit || o)) {
-        o.taken = true; this.secrets.add('shard'); p.maxHp++; p.hp = p.maxHp;
-        FX.ring(o.x + 5, o.y + 6, '#ffffff', 40); FX.burst(o.x + 5, o.y + 6, 30, { colors: ['#ffffff', '#bff6ff'], speed: 150, grav: 0 }); FX.stop(10);
-        this.toast('¡Fragmento de máscara! Salud máxima +1', 3.5); this.flashHud = 0.6;
+      const pk = PICKUPS[o.type];
+      if (pk && !o.taken && aabb(p, o.hit || o)) {
+        o.taken = true; this.secrets.add(o.type);
+        if (pk.hp) { p.maxHp++; p.hp = p.maxHp; }
+        this.applyUpgrades();
+        if (o.type === 'cristal' || o.type === 'vasija') p.soul = 99;
+        FX.ring(o.x + 5, o.y + 6, pk.col, 44); FX.burst(o.x + 5, o.y + 6, 30, { colors: [pk.col, '#ffffff'], speed: 150, grav: 0 }); FX.stop(10);
+        sfx('pickup'); this.flashHud = 0.6;
+        if (pk.ability) { this.state = 'ability'; this.abilityT = 0; this.saveGame(); }
+        else this.toast(pk.msg, 4);
       }
     }
     this.objs = this.objs.filter(o => !o.taken);
@@ -419,7 +567,7 @@ const Game = {
         if (this.boss === e && (e.state === 'dormant' || e.state === 'dying')) continue;
         if (e.contact && aabb(body, e)) { p.hurt(e.contact, e.cx, this); break; }
       }
-      for (const h of this.hazards) if (h.harmful !== false && aabb(body, h)) { p.hurt(1, h.x + h.w / 2, this); break; }
+      for (const h of this.hazards) if (h.harmful !== false && (h.hits ? h.hits(body) : aabb(body, h))) { p.hurt(1, h.x + h.w / 2, this); break; }
     }
 
     // transición de sala
@@ -455,6 +603,7 @@ const Game = {
       if (this.state === 'pause') this.drawPause(sctx);
       if (this.state === 'victory') this.drawVictory(sctx);
       if (this.state === 'levelclear') this.drawLevelClear(sctx);
+      if (this.state === 'ability') this.drawAbility(sctx);
     }
     sctx.restore();
   },
@@ -514,8 +663,48 @@ const Game = {
       for (let i = 0; i < 5; i++) { const fx = x + ((i * 7 + this.t * 20) % w); ctx.beginPath(); ctx.arc(fx, y + h - 2, 3 + Math.sin(this.t * 6 + i) * 1.5, 0, Math.PI * 2); ctx.fill(); }
     }
   },
+  // Templo de Cristal: fondo claro (blanco/azul pálido/oro) con haces de luz, arcos y cristales en parallax
+  drawCrystalBg(r, cx, cy) {
+    const grd = ctx.createLinearGradient(0, 0, 0, VH);
+    grd.addColorStop(0, '#fdfbff'); grd.addColorStop(0.5, '#e4eeff'); grd.addColorStop(1, '#fff1d6');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
+    // haces de luz diagonales
+    for (let i = 0; i < 5; i++) {
+      const x = ((i * 130 - cx * 0.05) % 650 + 650) % 650 - 80;
+      ctx.fillStyle = `rgba(255,236,170,${0.16 + 0.05 * Math.sin(this.t * 0.8 + i)})`;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 36, 0); ctx.lineTo(x - 70, VH); ctx.lineTo(x - 120, VH); ctx.fill();
+    }
+    // columnas y arcos lejanos
+    const layer = (par, col, sp, top) => {
+      ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 5;
+      const ox = -((cx * par) % sp) - sp;
+      for (let x = ox, i = Math.floor(cx * par / sp); x < VW + sp; x += sp, i++) {
+        const t0 = top - (cy * par * 0.3) % 30;
+        ctx.fillRect(Math.round(x), t0, 12, VH); ctx.fillRect(Math.round(x - 3), t0, 18, 5);
+        ctx.beginPath(); ctx.arc(Math.round(x + sp / 2 + 6), t0 + 14, sp / 2 - 8, Math.PI, 0); ctx.stroke();
+      }
+    };
+    layer(0.15, '#d6e2fa', 96, 60); layer(0.35, '#c4d4f4', 70, 96);
+    // cristales flotantes
+    for (let i = 0; i < 14; i++) {
+      const par = 0.2 + (i % 3) * 0.15;
+      const x = ((hash(i, 21) * 900 - cx * par) % 560 + 560) % 560 - 40;
+      const y = ((hash(i, 23) * 260 - cy * par * 0.3 + Math.sin(this.t * 0.9 + i) * 6) % 280 + 280) % 280 - 4;
+      const s = 3 + (i % 3) * 2;
+      ctx.fillStyle = i % 4 === 0 ? 'rgba(255,140,220,0.55)' : 'rgba(120,200,255,0.55)';
+      ctx.beginPath(); ctx.moveTo(x, y - s * 1.6); ctx.lineTo(x + s, y); ctx.lineTo(x, y + s * 1.6); ctx.lineTo(x - s, y); ctx.fill();
+    }
+    // motas doradas
+    ctx.fillStyle = 'rgba(255,200,80,0.8)';
+    for (let i = 0; i < 20; i++) {
+      const x = ((hash(i, 31) * VW * 1.5 - cx * 0.5) % VW + VW) % VW;
+      const y = ((hash(i, 37) * VH - this.t * (6 + hash(i, 5) * 8) - cy * 0.5) % VH + VH) % VH;
+      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+    }
+  },
   drawBackground(r, cx, cy) {
     if (r.theme === 'day') return this.drawDaySky(r, cx, cy);
+    if (r.theme === 'crystal') return this.drawCrystalBg(r, cx, cy);
     const grd = ctx.createLinearGradient(0, 0, 0, VH);
     grd.addColorStop(0, r.bg[0]); grd.addColorStop(1, r.bg[1]);
     ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
@@ -556,6 +745,7 @@ const Game = {
     this.drawFalls(r);
     if (r.canvas) ctx.drawImage(r.canvas, r.px, r.py);
     for (const w of this.winds) w.draw(ctx, this.t);
+    if (r.phases.length) this.drawPhases(r);
     for (const d of this.dyn) d.draw(ctx);
     for (const w of this.props) w.draw(ctx);
     // puertas: bloqueo del jefe (rojo) / salida sellada (piedra con sello dorado)
@@ -577,13 +767,13 @@ const Game = {
     for (const o of this.objs) this.drawObj(o);
     for (const e of this.enemies) e.draw(ctx);
     if (this.boss && !this.boss.dead) this.boss.draw(ctx);
-    for (const h of this.hazards) h.draw(ctx);
+    for (const h of this.hazards) h.draw(ctx, this.t);
     this.player.draw(ctx);
     FX.draw(ctx);
     ctx.restore();
     // viñeta
     const v = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.35, VW / 2, VH / 2, VH * 0.95);
-    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, r.theme === 'day' ? 'rgba(90,40,0,0.12)' : 'rgba(0,0,0,0.55)');
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, r.theme === 'day' ? 'rgba(90,40,0,0.12)' : r.theme === 'crystal' ? 'rgba(60,80,160,0.12)' : 'rgba(0,0,0,0.55)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, VW, VH);
     if (this.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.fade * 2)})`; ctx.fillRect(0, 0, VW, VH); }
     if (this.state === 'dying') { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.deadT / 1.2)})`; ctx.fillRect(0, 0, VW, VH); }
@@ -607,8 +797,23 @@ const Game = {
         ctx.fillRect(x + o.w / 2 - 3, y - 24 + Math.round(Math.sin(this.t * 5)), 7, 1);
         o.prompt = true;
       } else o.prompt = false;
-    } else if (o.type === 'shard') {
+    } else if (o.type === 'vasija') {
       const b = Math.round(Math.sin(this.t * 3) * 2);
+      ctx.fillStyle = 'rgba(122,216,255,0.4)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#16203a'; ctx.fillRect(x - 2, y + 1 + b, 14, 13); ctx.fillRect(x + 1, y - 3 + b, 8, 5);
+      ctx.fillStyle = '#e8f0ff'; ctx.fillRect(x - 1, y + 2 + b, 12, 11); ctx.fillStyle = '#7ad8ff'; ctx.fillRect(x, y + 6 + b, 10, 6);
+      ctx.fillStyle = '#ffd24a'; ctx.fillRect(x + 2, y - 2 + b, 6, 3); ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 1, y + 7 + b, 2, 3);
+    } else if (o.type === 'celeste') {
+      const b = Math.round(Math.sin(this.t * 3) * 2);
+      ctx.fillStyle = 'rgba(159,230,255,0.45)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(x + 5, y + 6 + b); ctx.rotate(-0.5);
+      ctx.fillStyle = '#16203a'; ctx.fillRect(-4, -10, 8, 20);
+      ctx.fillStyle = '#d8f8ff'; ctx.fillRect(-3, -9, 6, 18); ctx.fillStyle = '#9fe6ff'; ctx.fillRect(0, -9, 3, 18);
+      ctx.fillStyle = '#ffd24a'; ctx.fillRect(-1, -9, 1, 20);
+      ctx.restore();
+    } else if (o.type === 'shard' || o.type === 'shard2' || o.type === 'shard3') {
+      const b = Math.round(Math.sin(this.t * 3) * 2);
+      if (this.room.theme !== 'night') { ctx.fillStyle = 'rgba(22,32,58,0.5)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 10, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = 'rgba(191,246,255,0.3)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 9, 0, Math.PI * 2); ctx.fill();
       drawMask(ctx, x, y + b, 10, 12, true, '#ffffff');
     } else if (o.type === 'cristal') {
@@ -634,12 +839,13 @@ const Game = {
     g.save(); g.beginPath(); g.arc(ox, oy, rr, 0, Math.PI * 2); g.clip();
     const lvl = oy + rr - (p.soul / 99) * rr * 2;
     const wave = Math.sin(this.t * 3) * 1.2;
-    g.fillStyle = p.soul >= P.HEAL_COST ? '#dff9ff' : '#8fb8c8';
+    const hc = p.healCost || P.HEAL_COST;
+    g.fillStyle = p.soul >= hc ? '#dff9ff' : '#8fb8c8';
     g.fillRect(ox - rr, lvl + wave, rr * 2, rr * 2);
     g.restore();
     g.strokeStyle = '#e8ecff'; g.lineWidth = 1.5; g.beginPath(); g.arc(ox, oy, rr, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 0.6;
-    for (const k of [33, 66]) { const yy = oy + rr - (k / 99) * rr * 2; g.beginPath(); g.moveTo(ox - rr + 2, yy); g.lineTo(ox + rr - 2, yy); g.stroke(); }
+    for (let k = hc; k < 99; k += hc) { const yy = oy + rr - (k / 99) * rr * 2; g.beginPath(); g.moveTo(ox - rr + 2, yy); g.lineTo(ox + rr - 2, yy); g.stroke(); }
     // máscaras
     for (let i = 0; i < p.maxHp; i++) {
       const full = i < p.hp;
@@ -711,7 +917,7 @@ const Game = {
     const s = Math.min(80 / (maxX - minX), 28 / (maxY - minY)), mx = VW - 92, my = 8;
     g.fillStyle = 'rgba(8,6,16,0.7)'; g.fillRect(mx - 4, my - 3, 88, 42);
     g.font = '6px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = '#ffd28a';
-    g.fillText(lv === 2 ? 'Nivel 2 · Cumbres del Alba' : 'Nivel 1 · Reino Hueco', mx - 1, my + 34);
+    g.fillText('Nivel ' + lv + ' · ' + LEVEL_NAMES[lv], mx - 1, my + 34);
     for (const r of rooms) {
       if (!r.visited) continue;
       const x = mx + (r.ox - minX) * s, y = my + (r.oy - minY) * s;
@@ -734,6 +940,7 @@ const Game = {
       ['↑ + ATACAR (aire)', 'Tajo hacia arriba'],
       ['DASH', 'Dash (en suelo y 1 en el aire)'],
       ['SALTAR en pared', 'Salto de pared (con DASH: más lejos)'],
+      ['SALTAR en el aire', 'Salto Celeste (se obtiene en el Nivel 2)'],
       ['CURAR (mantener)', 'Curar 1 máscara (gasta energía)'],
       ['↑ en un banco', 'Sentarse · ↓+SALTAR: bajar plataforma'],
       ['❚❚', 'Pausa'],
@@ -746,9 +953,10 @@ const Game = {
       ['↑ + Ataque (aire)', 'Tajo hacia arriba'],
       ['C / L', 'Dash (en suelo y 1 en el aire)'],
       ['Saltar en pared', 'Salto de pared (con Dash: más lejos)'],
+      ['Saltar en el aire', 'Salto Celeste (se obtiene en el Nivel 2)'],
       ['V / Shift (mantener)', 'Curar 1 máscara (gasta energía)'],
       ['↑ / W en un banco', 'Sentarse: guardar y curar'],
-      ['Enter / Esc', 'Pausa'],
+      ['Enter / Esc · M', 'Pausa · Sonido sí/no'],
     ];
   },
   drawControls(g, x, y, lh) {
@@ -795,7 +1003,7 @@ const Game = {
     g.fillStyle = 'rgba(8,6,16,0.7)'; g.fillRect(186, 80, 282, 138);
     g.strokeStyle = 'rgba(255,58,92,0.6)'; g.lineWidth = 0.6; g.strokeRect(186, 80, 282, 138);
     g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffb0c0'; g.textAlign = 'center'; g.fillText('CONTROLES', 327, 89);
-    this.drawControls(g, 296, 101, 10.5);
+    this.drawControls(g, 296, 100, 9.8);
     g.font = '7px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
     g.fillText(IS_TOUCH() ? 'Controles táctiles · también funciona con teclado o mando' : 'Mando: A saltar · X atacar · B/RB dash · Y/LB curar · Start pausa', 327, 211);
     const m = this.menu;
@@ -823,25 +1031,44 @@ const Game = {
       }
     }
     g.font = '6px sans-serif'; g.fillStyle = '#6d6488'; g.fillText('Prototipo vertical slice · arte provisional procedural', 327, 267);
+    if (!m || !m.confirm) this.drawSoundButton(g);
   },
   drawPause(g) {
     g.fillStyle = 'rgba(5,4,10,0.8)'; g.fillRect(0, 0, VW, VH);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = 'bold 18px Georgia, serif'; g.fillStyle = '#ff3a5c'; g.fillText('PAUSA', VW / 2, 36);
-    this.drawControls(g, 230, 70, 14);
+    this.drawControls(g, 230, 62, 13);
     g.font = '8px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
-    g.fillText(IS_TOUCH() ? 'Toca la pantalla para continuar' : 'Pulsa ENTER o Esc para continuar', VW / 2, 225);
+    g.fillText(IS_TOUCH() ? 'Toca la pantalla para continuar' : 'Pulsa ENTER o Esc para continuar', VW / 2, 222);
+    this.drawSoundButton(g);
+  },
+  drawAbility(g) {
+    const a = Math.min(1, this.abilityT / 0.6);
+    g.fillStyle = `rgba(8,14,34,${0.72 * a})`; g.fillRect(0, 0, VW, VH);
+    g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'italic 10px Georgia, serif'; g.fillStyle = '#aee0ff'; g.fillText('Nueva habilidad', VW / 2, 74);
+    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#16203a'; g.fillText('SALTO CELESTE', VW / 2 + 2, 100);
+    g.fillStyle = '#e8fbff'; g.fillText('SALTO CELESTE', VW / 2, 98);
+    g.font = '13px Georgia, serif'; g.fillStyle = '#ffd24a'; g.fillText('Salta de nuevo en el aire', VW / 2, 128);
+    g.font = '8px sans-serif'; g.fillStyle = '#e8ecff';
+    g.fillText(IS_TOUCH() ? 'Pulsa SALTAR otra vez mientras estás en el aire.' : 'Pulsa Saltar (Z / J / Espacio) otra vez mientras estás en el aire.', VW / 2, 152);
+    g.fillText('Se recarga al tocar el suelo, agarrarte a una pared o rebotar con el tajo abajo.', VW / 2, 165);
+    if (this.abilityT > 1.2 && Math.floor(this.abilityT * 2) % 2 === 0) {
+      g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 200);
+    }
+    g.globalAlpha = 1;
   },
   drawLevelClear(g) {
     const a = Math.min(1, this.clearT / 0.8);
     g.fillStyle = `rgba(5,4,10,${0.7 * a})`; g.fillRect(0, 0, VW, VH);
     g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText('NIVEL 1 COMPLETADO', VW / 2 + 2, 98);
-    g.fillStyle = '#ffd28a'; g.fillText('NIVEL 1 COMPLETADO', VW / 2, 96);
+    const L = this.clearLevel, title = 'NIVEL ' + L + ' COMPLETADO';
+    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText(title, VW / 2 + 2, 98);
+    g.fillStyle = '#ffd28a'; g.fillText(title, VW / 2, 96);
     g.font = '12px Georgia, serif'; g.fillStyle = '#e8ecff';
-    g.fillText('El Guardián Hueco ha caído. Un sello se rompe al este…', VW / 2, 128);
+    g.fillText(L === 2 ? 'El Heraldo del Alba ha caído. Una pluma celeste brilla en la arena…' : 'El Guardián Hueco ha caído. Un sello se rompe al este…', VW / 2, 128);
     g.font = 'italic 11px Georgia, serif'; g.fillStyle = '#aee0ff';
-    g.fillText('Siguiente: Nivel 2 — Cumbres del Alba', VW / 2, 148);
+    g.fillText('Siguiente: Nivel ' + (L + 1) + ' — ' + LEVEL_NAMES[L + 1], VW / 2, 148);
     if (this.clearT > 1.5 && Math.floor(this.clearT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 190);
     }
@@ -854,11 +1081,11 @@ const Game = {
     g.font = 'bold 30px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText('¡VICTORIA!', VW / 2 + 2, 92);
     g.fillStyle = '#ffd28a'; g.fillText('¡VICTORIA!', VW / 2, 90);
     g.font = '12px Georgia, serif'; g.fillStyle = '#e8ecff';
-    g.fillText('El Heraldo del Alba ha caído. Kaen contempla el amanecer.', VW / 2, 124);
+    g.fillText('El Oráculo Prismático se apaga. La luz del templo vuelve a ser libre.', VW / 2, 124);
     const m = Math.floor(this.playTime / 60), s = Math.floor(this.playTime % 60);
     g.font = '9px sans-serif'; g.fillStyle = '#a898c8';
-    const found = ['shard', 'cristal'].filter(k => this.secrets.has(k)).length;
-    g.fillText(`Tiempo: ${m}:${String(s).padStart(2, '0')}   ·   Secretos: ${found}/2   ·   Fin del prototipo`, VW / 2, 146);
+    const found = SECRET_KEYS.filter(k => this.secrets.has(k)).length;
+    g.fillText(`Tiempo: ${m}:${String(s).padStart(2, '0')}   ·   Secretos: ${found}/${SECRET_KEYS.length}   ·   Fin del prototipo`, VW / 2, 146);
     if (this.victoryT > 1.5 && Math.floor(this.victoryT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para volver al título' : 'Pulsa ENTER para volver al título', VW / 2, 190);
     }
@@ -885,13 +1112,14 @@ function frame(now) {
   while (acc >= STEP && n < 5) { if (!(window.GAME && window.GAME.manual)) Game.update(STEP); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   Game.draw();
+  Sound.music(Game.musicName()); Sound.duck = Game.state === 'pause' ? 0.35 : 1; Sound.update();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
 // Ganchos de depuración (para pruebas automáticas)
 window.GAME = {
-  Game, World, Input, FX,
+  Game, World, Input, FX, Sound,
   start() { if (Game.state === 'title') Game.newGame(); },
   manual: false,
   // Modo manual: el bucle deja de avanzar la simulación y las pruebas la avanzan de forma determinista

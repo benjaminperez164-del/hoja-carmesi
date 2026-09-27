@@ -28,7 +28,7 @@ class Player {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
     this.facing = 1; this.onGround = false;
     this.coyote = 0; this.jumpBuf = 0; this.atkBuf = 0;
-    this.dashT = 0; this.dashCd = 0; this.groundDash = false; this.airDashUsed = false; this.dashMomentum = false;
+    this.dashT = 0; this.dashCd = 0; this.groundDash = false; this.airDashUsed = false; this.dashMomentum = false; this.airJumpUsed = false;
     this.wjLock = 0; this.canCut = false; this.wallDir = 0; this.sliding = false;
     this.atk = null; this.atkCd = 0; this.recoilT = 0; this.recoilV = 0;
     this.hurtT = 0; this.invulnT = 0; this.healT = 0; this.healing = false;
@@ -47,7 +47,7 @@ class Player {
     const dir = Math.sign(this.cx - srcX) || -this.facing;
     this.vx = dir * 160; this.vy = -230;
     this.atk = null; this.dashT = 0; this.healT = 0; this.healing = false; this.dashMomentum = false; this.sitting = false;
-    FX.stop(9); FX.shake(5, 0.3);
+    FX.stop(9); FX.shake(5, 0.3); sfx('hurt');
     FX.burst(this.cx, this.cy, 16, { colors: ['#ff3355', '#ffffff', '#ff8899'], speed: 160, life: 0.45 });
     FX.ring(this.cx, this.cy, '#ff4466', 26);
     if (this.hp <= 0) game.playerDied();
@@ -55,7 +55,7 @@ class Player {
   }
 
   pogo() {
-    this.vy = -P.POGO_V; this.airDashUsed = false; this.dashMomentum = false; this.canCut = false;
+    this.vy = -P.POGO_V; this.airDashUsed = false; this.airJumpUsed = false; this.dashMomentum = false; this.canCut = false; sfx('pogo');
     this.dashT = 0;
   }
 
@@ -78,6 +78,7 @@ class Player {
       return;
     }
     const dir = (I.down('right') ? 1 : 0) - (I.down('left') ? 1 : 0);
+    if (this.djT > 0) this.djT -= dt;
     const timers = ['coyote', 'jumpBuf', 'atkBuf', 'dashCd', 'wjLock', 'atkCd', 'recoilT', 'hurtT', 'invulnT', 'dropT'];
     for (const t of timers) if (this[t] > 0) this[t] -= dt;
 
@@ -95,13 +96,14 @@ class Player {
 
     // --- Curación (mantener) ---
     const healT = this.healTime || P.HEAL_T;
-    const canHeal = !stunned && this.onGround && this.soul >= P.HEAL_COST && this.hp < this.maxHp && !this.atk && this.dashT <= 0;
+    const healCost = this.healCost || P.HEAL_COST;
+    const canHeal = !stunned && this.onGround && this.soul >= healCost && this.hp < this.maxHp && !this.atk && this.dashT <= 0;
     if (I.down('heal') && canHeal) {
       this.healing = true; this.vx = 0;
       this.healT += dt;
       if (Math.random() < 0.6) FX.burst(this.cx + (Math.random() - 0.5) * 20, this.y + this.h, 1, { angle: -Math.PI / 2, spread: 0.3, speed: 60, colors: ['#bff6ff', '#ffffff', '#6fe0ff'], grav: -40, life: 0.6 });
       if (this.healT >= healT) {
-        this.healT = 0; this.hp++; this.soul -= P.HEAL_COST;
+        this.healT = 0; this.hp++; this.soul -= healCost; sfx('heal');
         FX.ring(this.cx, this.cy, '#bff6ff', 30); FX.burst(this.cx, this.cy, 20, { colors: ['#ffffff', '#bff6ff'], speed: 120, grav: 0 });
         game.flashHud = 0.4;
       }
@@ -116,7 +118,7 @@ class Player {
           if (dir) this.facing = dir;
           if (this.sliding) this.facing = -this.wallDir || this.facing;
           this.dashMomentum = false; this.atk = this.onGround ? null : this.atk;
-          FX.dust(this.cx - this.facing * 6, this.y + this.h, this.facing > 0 ? Math.PI : 0);
+          FX.dust(this.cx - this.facing * 6, this.y + this.h, this.facing > 0 ? Math.PI : 0); sfx('dash');
         }
       }
       if (this.dashT > 0) {
@@ -145,14 +147,22 @@ class Player {
           this.dashT = 0;
           this.vy = -P.JUMP_V; this.coyote = 0; this.jumpBuf = 0; this.canCut = true;
           if (this.atk && this.atk.ground) this.atk = null;
-          FX.dust(this.cx, this.y + this.h);
+          FX.dust(this.cx, this.y + this.h); sfx('jump');
         } else if (this.wallDir !== 0) {
           this.vy = -P.WJ_VY; this.wjLock = P.WJ_LOCK; this.canCut = true; this.jumpBuf = 0;
-          this.dashT = 0; this.airDashUsed = false;
+          this.dashT = 0; this.airDashUsed = false; this.airJumpUsed = false; sfx('wjump');
           this.dashMomentum = I.down('dash');
           this.vx = -this.wallDir * (this.dashMomentum ? P.DASH : P.WJ_VX);
           this.facing = -this.wallDir;
           FX.burst(this.wallDir > 0 ? this.x + this.w : this.x, this.cy, 6, { angle: this.wallDir > 0 ? Math.PI : 0, spread: 1.2, speed: 70, colors: ['#c8c0d8', '#ffffff'], grav: 50 });
+        } else if (this.hasDouble && !this.airJumpUsed && I.pressed('jump')) {
+          // Salto Celeste: segundo salto en el aire (se recarga al tocar suelo, pared o rebotar)
+          this.airJumpUsed = true; this.jumpBuf = 0; this.canCut = true;
+          this.vy = -P.JUMP_V; this.dashT = 0;
+          if (this.atk && !this.atk.ground && this.atk.type !== 'down') this.atk = null;
+          FX.ring(this.cx, this.y + this.h, '#9fe6ff', 16);
+          FX.burst(this.cx, this.y + this.h, 12, { colors: ['#ffffff', '#9fe6ff', '#ffe08a'], speed: 110, angle: Math.PI / 2, spread: 1.6, grav: 120, life: 0.4 });
+          this.djT = 0.25; sfx('djump');
         }
       }
       if (I.released('jump') && this.vy < 0 && this.canCut) { this.vy *= P.JUMP_CUT; this.canCut = false; }
@@ -173,7 +183,7 @@ class Player {
     this.sliding = false;
     if (!stunned && !this.onGround && this.vy > 0 && this.wallDir !== 0 && dir === this.wallDir && this.wjLock <= 0) {
       this.vy = Math.min(this.vy, P.WALL_SLIDE); this.sliding = true; this.dashMomentum = false;
-      this.facing = -this.wallDir; this.airDashUsed = false;
+      this.facing = -this.wallDir; this.airDashUsed = false; this.airJumpUsed = false;
       if (Math.random() < 0.3) FX.burst(this.wallDir > 0 ? this.x + this.w : this.x, this.y + 4, 1, { colors: ['#c8c0d8'], speed: 20, grav: -10, life: 0.3 });
     }
 
@@ -181,9 +191,9 @@ class Player {
     moveEntity(this, dt, { dropThrough: this.dropT > 0, dyn: true });
     if (this.hitWallL || this.hitWallR) { if (!this.onGround) this.dashMomentum = this.dashMomentum && false; }
     if (this.onGround) {
-      this.coyote = P.COYOTE; this.airDashUsed = false;
+      this.coyote = P.COYOTE; this.airDashUsed = false; this.airJumpUsed = false;
       if (this.dashT <= 0) this.dashMomentum = false;
-      if (wasAir && vyBefore > 150) { FX.dust(this.cx - 4, this.y + this.h); FX.dust(this.cx + 4, this.y + this.h); }
+      if (wasAir && vyBefore > 150) { FX.dust(this.cx - 4, this.y + this.h); FX.dust(this.cx + 4, this.y + this.h); sfx('land'); }
       if (this.atk && !this.atk.ground && this.atk.t > this.atk.def.h1) this.atk = null;
       this.recordSafe();
     }
@@ -236,6 +246,7 @@ class Player {
       color: type === 'g3' ? '#e8fdff' : '#bff6ff', color2: type === 'g3' ? '#5ff0ff' : '#2fd6ff',
     });
     this.atkBuf = 0;
+    sfx(type === 'g1' ? 'slash1' : type === 'g2' ? 'slash2' : type === 'g3' ? 'slash3' : type === 'down' ? 'slashDown' : 'slashAir');
   }
 
   updateAttack(dt, game, dir) {
@@ -339,7 +350,7 @@ class Player {
     if (this.invulnT > 0 && this.hurtT <= 0 && Math.floor(this.invulnT * 20) % 2 === 0) return;
     // pelo (detrás)
     const hs = this.hair;
-    const day = typeof Game !== 'undefined' && Game.room && Game.room.theme === 'day';
+    const day = typeof Game !== 'undefined' && Game.room && Game.room.theme !== 'night';
     if (day) {   // contorno oscuro para leerse sobre fondos claros
       ctx.strokeStyle = '#1c1018'; ctx.lineCap = 'round';
       for (let i = 1; i < hs.length; i++) {
@@ -357,6 +368,15 @@ class Player {
     ctx.beginPath(); ctx.moveTo(Math.round(hs[1].x), Math.round(hs[1].y + 1));
     for (let i = 2; i < hs.length; i++) ctx.lineTo(Math.round(hs[i].x), Math.round(hs[i].y + 1));
     ctx.stroke();
+    if (this.djT > 0) {   // alas de luz del Salto Celeste
+      const k = this.djT / 0.25, wy = this.y + 8, cx = this.cx;
+      ctx.globalAlpha = k;
+      for (const sd of [-1, 1]) {
+        ctx.fillStyle = '#16203a'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 15, wy - 7); ctx.lineTo(cx + sd * 12, wy + 5); ctx.fill();
+        ctx.fillStyle = '#d8f8ff'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 13, wy - 5); ctx.lineTo(cx + sd * 10, wy + 3); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     const flash = this.hurtT > 0 && Math.floor(this.hurtT * 30) % 2 === 0 ? '#ffffff' : null;
     drawKaen(ctx, this.cx, this.y + this.h, this.facing, this.anim(), this.animT, flash);
     if (this.healing) {

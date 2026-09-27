@@ -4,7 +4,8 @@ const TILE = 16;
 const T_EMPTY = 0, T_SOLID = 1, T_SPIKE = 2, T_PLAT = 3;
 
 function makeRoom(def) {
-  const r = Object.assign({ objs: [], doors: [], visited: false, level: 1, theme: 'night', movers: [], crumbles: [], winds: [], falls: [], walls: [] }, def);
+  const r = Object.assign({ objs: [], doors: [], visited: false, level: 1, theme: 'night', movers: [], crumbles: [], winds: [], falls: [], walls: [], beams: [], blinks: [], phases: [] }, def);
+  r.phaseKeys = new Set();
   r.grid = [];
   for (let y = 0; y < r.h; y++) r.grid.push(new Uint8Array(r.w));
   const set = (x, y, w, h, t) => {
@@ -24,6 +25,14 @@ function makeRoom(def) {
     crumble: (x, y, w) => r.crumbles.push({ x, y, w }),
     wind: (x, y, w, h) => r.winds.push({ x, y, w, h }),
     fall: (x, y, w, h) => r.falls.push({ x, y, w, h }),
+    // Nivel 3: haz de luz temporizado, plataforma intermitente, bloques de fase (a/b) que alterna un cristal
+    beam: (x, y, len, dir, period, phase) => r.beams.push({ x, y, len, dir, period, phase }),
+    blink: (x, y, w, period, phase) => r.blinks.push({ x, y, w, period, phase }),
+    phase: (x, y, w, h, s) => {
+      r.phases.push({ x, y, w, h, set: s });
+      set(x, y, w, h, s === 'a' ? T_SOLID : T_EMPTY);
+      for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) r.phaseKeys.add(i + ',' + j);
+    },
     breakwall: (x, y, w, h, id) => { set(x, y, w, h, T_SOLID); r.walls.push({ x, y, w, h, id }); },
     box() { set(0, 0, r.w, 1, T_SOLID); set(0, 0, 1, r.h, T_SOLID); set(r.w - 1, 0, 1, r.h, T_SOLID); },
   };
@@ -61,6 +70,7 @@ const ROOM_DEFS = [
     build(b) {
       b.box(); b.rect(0, 15, 40, 2);
       b.clear(0, 11, 1, 4); b.clear(39, 11, 1, 4);
+      b.clear(25, 0, 3, 1);            // hueco en el techo: solo alcanzable con Salto Celeste
       b.spikes(9, 15, 3); b.spikes(22, 15, 4);
       b.plat(8, 11, 5); b.plat(20, 10, 3); b.plat(25, 7, 4);
       b.rect(15, 12, 2, 3);
@@ -100,6 +110,12 @@ const ROOM_DEFS = [
       b.clear(29, 11, 1, 4); b.exitDoor(29, 11, 1, 4, 'guardian');   // camino al Nivel 2
       b.plat(7, 10, 3); b.plat(20, 10, 3);
       b.obj('boss', 20, 15, { boss: 'guardian' });
+    } },
+  { id: 'nicho', name: 'Nicho Celeste', ox: 50, oy: -8, w: 14, h: 8, secret: true,
+    bg: ['#1a1a36', '#0a0a1a'], tint: '#3c3c72',
+    build(b) {
+      b.rect(0, 0, 14, 1); b.rect(0, 0, 1, 8); b.rect(13, 0, 1, 8);   // el suelo es el techo del Pasaje
+      b.obj('shard2', 10.5, 8);
     } },
   // =================== NIVEL 2: CUMBRES DEL ALBA ===================
   { id: 'mirador', name: 'Mirador del Alba', ox: 160, oy: -17, w: 30, h: 17, level: 2, theme: 'day',
@@ -155,6 +171,7 @@ const ROOM_DEFS = [
       b.rect(0, 0, 1, 3); b.rect(0, 7, 5, 10);
       b.rect(0, 15, 40, 2); b.spikes(12, 15, 3); b.spikes(23, 15, 3);
       b.plat(8, 10, 4); b.plat(18, 9, 4); b.plat(29, 11, 3);
+      b.plat(20, 2, 3); b.obj('vasija', 21.5, 2);        // repisa alta: solo con Salto Celeste
       b.rect(33, 7, 7, 10); b.rect(39, 0, 1, 3);
       b.fall(36, 0, 2, 7);
       b.obj('shield', 17, 15); b.obj('shield', 28, 15);
@@ -171,13 +188,102 @@ const ROOM_DEFS = [
       b.obj('flyer', 13, 3, { day: true });
       b.obj('sign', 3, 7, { text: 'Las corrientes te elevan y recargan el dash' });
     } },
-  { id: 'sol', name: 'Santuario del Sol', ox: 328, oy: -34, w: 32, h: 17, level: 2, theme: 'day', boss: true,
+  // Sala del jefe sin refugios: la entrada está a ras del suelo de la arena (sin repisa elevada)
+  { id: 'sol', name: 'Santuario del Sol', ox: 328, oy: -34, w: 32, h: 17, level: 2, theme: 'day', boss: true, floorRow: 12,
     build(b) {
-      b.rect(0, 0, 1, 8); b.rect(0, 12, 3, 5);
-      b.rect(0, 15, 32, 2); b.rect(31, 0, 1, 17);
+      b.rect(0, 0, 1, 8);
+      b.rect(0, 12, 32, 5); b.rect(31, 0, 1, 8);
       b.door(0, 8, 1, 4);
-      b.plat(7, 10, 3); b.plat(22, 10, 3);
-      b.obj('boss', 22, 15, { boss: 'heraldo' });
+      b.exitDoor(31, 8, 1, 4, 'heraldo');                  // camino al Nivel 3
+      b.plat(7, 8, 3); b.plat(22, 8, 3);
+      b.obj('boss', 22, 12, { boss: 'heraldo' });
+      b.obj('celeste', 16, 12);
+    } },
+  // =================== NIVEL 3: TEMPLO DE CRISTAL ===================
+  { id: 'atrio', name: 'Atrio de Cristal', ox: 360, oy: -34, w: 30, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 30, 2); b.rect(0, 2, 1, 6);
+      b.rect(0, 12, 13, 5);
+      b.rect(13, 15, 7, 2); b.spikes(13, 14, 7);            // púas de cristal
+      b.blink(15, 10, 3, 3.0, 0);
+      b.rect(20, 12, 10, 5); b.rect(29, 2, 1, 6);
+      b.obj('bench', 5, 12);
+      b.obj('sign', 9, 12, { text: 'Salto Celeste: pulsa SALTAR otra vez en el aire' });
+      b.obj('walker', 25, 12);
+    } },
+  { id: 'haces', name: 'Galería de los Haces', ox: 390, oy: -34, w: 40, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 40, 2); b.rect(0, 2, 1, 6); b.rect(39, 2, 1, 6);
+      b.rect(0, 12, 40, 5);
+      b.rect(14, 11, 2, 1); b.rect(23, 10, 3, 2);
+      b.beam(9, 2, 10, 'v', 2.8, 0); b.beam(19, 2, 10, 'v', 2.8, 0.9); b.beam(30, 2, 10, 'v', 2.8, 1.8);
+      b.obj('prisma', 34, 5);
+      b.obj('sign', 4, 12, { text: 'Los haces parpadean antes de encenderse' });
+    } },
+  { id: 'pozoPrisma', name: 'Pozo Prismático', ox: 430, oy: -51, w: 22, h: 34, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 22, 1);
+      b.rect(0, 1, 1, 24); b.breakwall(0, 10, 1, 4, 'muroCristal');   // muro de cristal agrietado (secreto)
+      b.rect(0, 29, 22, 5);
+      b.rect(21, 1, 1, 2); b.rect(21, 7, 1, 27);           // salida superior derecha (filas 3-6)
+      b.rect(1, 14, 4, 1);                                  // repisa junto al muro secreto
+      b.rect(5, 24, 4, 1); b.rect(12, 19, 4, 1);
+      b.blink(6, 14, 3, 3.2, 0); b.blink(12, 10, 3, 3.2, 1.6);
+      b.rect(16, 7, 5, 1);
+      b.obj('moth', 11, 5);
+      b.obj('sign', 3, 29, { text: '↑ Encadena saltos: el Salto Celeste llega más alto' });
+    } },
+  { id: 'relicario', name: 'Relicario de Luz', ox: 412, oy: -51, w: 18, h: 16, level: 3, theme: 'crystal', secret: true,
+    build(b) {
+      b.rect(0, 0, 18, 1); b.rect(0, 0, 1, 16); b.rect(17, 0, 1, 10); b.rect(17, 14, 1, 2);
+      b.rect(0, 14, 18, 2); b.spikes(4, 13, 9);
+      b.rect(1, 10, 3, 4);
+      b.blink(9, 10, 2, 2.6, 0); b.blink(5, 8, 2, 2.6, 1.3);
+      b.obj('shard3', 2.5, 10);
+    } },
+  { id: 'puenteFase', name: 'Puente de las Fases', ox: 452, oy: -51, w: 40, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 40, 1); b.rect(0, 1, 1, 2);
+      b.rect(0, 7, 5, 10);
+      b.spikes(5, 15, 30); b.rect(5, 16, 30, 1);
+      b.phase(7, 8, 2, 1, 'a'); b.phase(11, 8, 2, 1, 'a');
+      b.rect(15, 8, 2, 9);
+      b.obj('switch', 17.6, 7.4);
+      b.phase(19, 8, 2, 1, 'b'); b.phase(23, 8, 2, 1, 'b'); b.phase(27, 8, 2, 1, 'b');
+      b.rect(30, 8, 2, 9);
+      b.obj('switch', 32.6, 7.4);
+      b.phase(33, 1, 1, 7, 'b');                            // barrera: sólida en la fase azul
+      b.phase(33, 8, 2, 1, 'a');
+      b.rect(35, 7, 5, 10); b.rect(39, 1, 1, 2);
+      b.obj('prisma', 21, 4);
+      b.obj('sign', 2.5, 7, { text: 'Golpea el cristal para alternar los bloques' });
+    } },
+  { id: 'claustro', name: 'Claustro de Cuarzo', ox: 492, oy: -51, w: 36, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 36, 1); b.rect(0, 1, 1, 2);
+      b.rect(0, 7, 5, 10);
+      b.rect(5, 1, 23, 4);                                  // techo bajo: hay que rebotar en las púas
+      b.spikes(5, 12, 23); b.rect(5, 13, 23, 4);
+      b.rect(28, 10, 8, 7); b.rect(32, 7, 4, 3); b.rect(35, 1, 1, 2);
+      b.obj('walker', 30, 10);
+      b.obj('moth', 31, 4);
+      b.obj('sign', 2.5, 7, { text: '↓+Ataque sobre las púas de cristal' });
+    } },
+  { id: 'antecamara', name: 'Antecámara de Luz', ox: 528, oy: -51, w: 24, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 2);
+      b.rect(0, 7, 6, 10); b.rect(6, 9, 3, 8);
+      b.rect(0, 12, 24, 5); b.rect(23, 1, 1, 7);
+      b.obj('bench', 15, 12);
+      b.obj('sign', 11, 12, { text: 'Más allá late el corazón del templo' });
+    } },
+  { id: 'corazon', name: 'Corazón del Templo', ox: 552, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal', boss: true, floorRow: 12,
+    build(b) {
+      b.rect(0, 0, 32, 1); b.rect(0, 1, 1, 7);
+      b.rect(0, 12, 32, 5); b.rect(31, 0, 1, 17);
+      b.door(0, 8, 1, 4);
+      b.plat(8, 8, 4); b.plat(20, 8, 4);
+      b.obj('boss', 16, 12, { boss: 'oraculo' });
     } },
 ];
 

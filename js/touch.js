@@ -3,7 +3,7 @@
 const Touch = (() => {
   const ui = document.getElementById('touch-ui');
   const stick = document.getElementById('stick'), knob = document.getElementById('stick-knob');
-  const buttons = Array.from(ui.querySelectorAll('.tbtn'));
+  const buttons = Array.from(ui.querySelectorAll('.tbtn[data-action]'));
   const touches = new Map();       // identifier -> { kind: 'stick'|'btn'|'tap', btn, ox, oy }
   const R = 46, DEAD = 12;         // radio del joystick y zona muerta (px CSS)
   let triedFullscreen = false;
@@ -52,18 +52,21 @@ const Touch = (() => {
     b.classList.remove('on'); Input.setVirtual(b.dataset.action, false);
   }
 
-  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'levelclear';
+  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'levelclear' || Game.state === 'ability';
+  const soundBtn = document.getElementById('btn-sound');
+  function onSoundBtn(x, y) { if (!soundBtn) return false; const r = soundBtn.getBoundingClientRect(); return r.width > 0 && Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) < r.width / 2 + 8; }
   const toLogical = (cx, cy) => { const d = window.devicePixelRatio || 1; return [(cx * d - offX) / scale, (cy * d - offY) / scale]; };
 
   function onStart(e) {
     enable();
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     for (const t of e.changedTouches) {
       const x = t.clientX, y = t.clientY;
+      if (onSoundBtn(x, y) && Game.state !== 'title') { touches.set(t.identifier, { kind: 'none' }); Sound.unlock(); Sound.toggle(); continue; }
       if (menuState()) {
         // tocar en cualquier parte = comenzar / continuar
         touches.set(t.identifier, { kind: 'tap' });
-        if (Game.state === 'title') { const [lx, ly] = toLogical(x, y); Game.menuTap(lx, ly); continue; }
+        if (Game.state === 'title' || Game.state === 'pause') { const [lx, ly] = toLogical(x, y); if (Game.menuTap(lx, ly)) continue; if (Game.state === 'title') continue; }
         Input.setVirtual(Game.state === 'pause' ? 'pause' : 'start', true);
         continue;
       }
@@ -77,7 +80,7 @@ const Touch = (() => {
     }
   }
   function onMove(e) {
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     for (const t of e.changedTouches) {
       const s = touches.get(t.identifier); if (!s) continue;
       if (s.kind === 'stick') {
@@ -94,7 +97,7 @@ const Touch = (() => {
     }
   }
   function onEnd(e) {
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     for (const t of e.changedTouches) {
       const s = touches.get(t.identifier); if (!s) continue;
       touches.delete(t.identifier);
@@ -133,7 +136,7 @@ const Touch = (() => {
   document.addEventListener('touchcancel', onEnd, opts);
   document.addEventListener('contextmenu', e => e.preventDefault());
   // Clic de ratón en el menú del título (escritorio)
-  document.addEventListener('mousedown', e => { if (Game.state === 'title') { const [lx, ly] = toLogical(e.clientX, e.clientY); Game.menuTap(lx, ly); } });
+  document.addEventListener('mousedown', e => { if (Game.state === 'title' || Game.state === 'pause') { const [lx, ly] = toLogical(e.clientX, e.clientY); Game.menuTap(lx, ly); } });
   document.addEventListener('gesturestart', e => e.preventDefault());   // iOS: pellizcar para zoom
   document.addEventListener('dblclick', e => e.preventDefault());
   window.addEventListener('blur', releaseAll);
