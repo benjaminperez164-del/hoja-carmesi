@@ -35,6 +35,11 @@ Todo el arte es provisional y se dibuja por código (Canvas 2D). Sin dependencia
 - Para jugar desde el móvil, sirve la carpeta en tu red local (`python3 -m http.server 8765 --bind 0.0.0.0`)
   y abre `http://IP-DE-TU-PC:8765/` en el teléfono.
 
+## Reglas de progreso
+- Los enemigos derrotados no reaparecen durante la partida (ni al descansar en un banco, ni al morir, ni al volver a una sala).
+- Al morir reapareces en el último banco; el combate contra el jefe se reinicia por completo (puerta abierta, vida llena).
+- Tras derrotar al jefe, su puerta queda abierta.
+
 ## Mapa
 Santuario Caído (banco) → Pasaje de Espinas → Pozo del Eco (requiere salto de pared) →
 Galería Suspendida (foso de pinchos: requiere rebote; banco) → Cámara del Guardián (jefe).

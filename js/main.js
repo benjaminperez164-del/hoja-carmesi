@@ -85,15 +85,16 @@ function renderRoomTiles(room) {
 const Game = {
   state: 'title', t: 0, player: new Player(), enemies: [], hazards: [], objs: [], boss: null,
   cam: { x: 0, y: 0 }, room: null, banner: null, toasts: [], fade: 0, fadeDir: 0,
-  respawn: { room: 'santuario', tx: 14, ty: 15 }, bossDown: false, shard: false,
+  respawn: { room: 'santuario', tx: 14, ty: 15 }, bossDown: false, shard: false, killed: new Set(),
   flashHud: 0, deadT: 0, victoryT: 0, playTime: 0, timeScale: 1, slowT: 0, titleT: 0,
 
   hittables() { const l = this.enemies.filter(e => !e.dead); if (this.boss && !this.boss.dead) l.push(this.boss); return l; },
 
   newGame() {
     this.player = new Player();
-    this.bossDown = false; this.shard = false; this.playTime = 0;
-    World.rooms.forEach(r => { r.visited = false; r.doors.forEach(d => d.active = false); });
+    this.bossDown = false; this.shard = false; this.playTime = 0; this.killed = new Set();
+    World.rooms.forEach(r => { r.visited = false; });
+    this.resetBossEncounter();
     this.respawn = { room: 'santuario', tx: 14, ty: 15 };
     this.spawnAtRespawn();
     this.state = 'play';
@@ -105,22 +106,34 @@ const Game = {
     p.reset(r.px + this.respawn.tx * TILE - p.w / 2, r.py + this.respawn.ty * TILE - p.h);
     p.hp = p.maxHp;
     FX.clear();
+    this.resetBossEncounter();
     this.enterRoom(r, true);
     p.sitting = true;
   },
+  // Reinicia por completo el combate del jefe: puertas abiertas en TODAS las salas, proyectiles fuera,
+  // y el jefe se recrea con vida completa en estado previo a la intro (al volver a entrar en su sala).
+  resetBossEncounter() {
+    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
+    this.hazards = [];
+    this.slowT = 0;
+    if (this.boss) this.boss = null;
+  },
   enterRoom(room, snap) {
+    // Salir de una sala (o reaparecer) nunca deja puertas cerradas atrás
+    this.resetBossEncounter();
     this.room = World.cur = room;
     this.enemies = []; this.hazards = []; this.objs = []; this.boss = null;
-    room.doors.forEach(d => d.active = false);
-    for (const o of room.objs) {
+    room.objs.forEach((o, idx) => {
       const x = room.px + o.tx * TILE, y = room.py + o.ty * TILE;
-      if (o.type === 'walker') this.enemies.push(new Walker(x, y));
-      else if (o.type === 'flyer') this.enemies.push(new Flyer(x, y));
+      const kid = room.id + ':' + idx;
+      if ((o.type === 'walker' || o.type === 'flyer') && this.killed.has(kid)) return;  // los enemigos muertos no vuelven
+      if (o.type === 'walker') this.enemies.push(Object.assign(new Walker(x, y), { kid }));
+      else if (o.type === 'flyer') this.enemies.push(Object.assign(new Flyer(x, y), { kid }));
       else if (o.type === 'boss' && !this.bossDown) this.boss = new Boss(x, y, room);
       else if (o.type === 'bench') this.objs.push({ type: 'bench', x: x - 12, y: y - 10, w: 24, h: 10, tx: o.tx, ty: o.ty });
       else if (o.type === 'shard' && !this.shard) this.objs.push({ type: 'shard', x: x - 5, y: y - 14, w: 10, h: 12 });
       else if (o.type === 'sign') this.objs.push({ type: 'sign', x: x - 4, y: y - 14, w: 8, h: 14, text: o.text });
-    }
+    });
     if (!room.visited || snap) this.banner = { text: room.name, t: 0 };
     room.visited = true;
     if (snap) this.snapCam();
@@ -130,10 +143,15 @@ const Game = {
     this.banner = { text: b.name, t: 0, boss: true };
     FX.burst(this.room.px + 8, this.room.py + 10 * TILE, 20, { colors: ['#ff3a5c', '#ffffff'], speed: 100, grav: 0 });
   },
-  bossDefeated() { this.slowT = 1.8; },
+  bossDefeated() {
+    // El jefe queda derrotado desde ya: aunque algo golpeara al jugador durante la animación, no se reinicia
+    this.bossDown = true; this.slowT = 1.8;
+    this.hazards = []; this.player.invulnT = 99;
+    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
+  },
   victory() {
-    this.bossDown = true;
-    this.room.doors.forEach(d => d.active = false);
+    this.bossDown = true; this.player.invulnT = 0;
+    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
     this.state = 'victory'; this.victoryT = 0;
   },
   playerDied() { this.state = 'dying'; this.deadT = 0; FX.shake(6, 0.5); },
@@ -204,6 +222,7 @@ const Game = {
     if (this.boss) this.boss.update(dt, this);
     for (const h of this.hazards) h.update(dt, this);
     this.hazards = this.hazards.filter(h => !h.dead);
+    for (const e of this.enemies) if (e.dead && e.kid) this.killed.add(e.kid);
     this.enemies = this.enemies.filter(e => !e.dead);
 
     // daño por contacto
