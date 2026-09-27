@@ -94,12 +94,13 @@ class Player {
     }
 
     // --- Curación (mantener) ---
+    const healT = this.healTime || P.HEAL_T;
     const canHeal = !stunned && this.onGround && this.soul >= P.HEAL_COST && this.hp < this.maxHp && !this.atk && this.dashT <= 0;
     if (I.down('heal') && canHeal) {
       this.healing = true; this.vx = 0;
       this.healT += dt;
       if (Math.random() < 0.6) FX.burst(this.cx + (Math.random() - 0.5) * 20, this.y + this.h, 1, { angle: -Math.PI / 2, spread: 0.3, speed: 60, colors: ['#bff6ff', '#ffffff', '#6fe0ff'], grav: -40, life: 0.6 });
-      if (this.healT >= P.HEAL_T) {
+      if (this.healT >= healT) {
         this.healT = 0; this.hp++; this.soul -= P.HEAL_COST;
         FX.ring(this.cx, this.cy, '#bff6ff', 30); FX.burst(this.cx, this.cy, 20, { colors: ['#ffffff', '#bff6ff'], speed: 120, grav: 0 });
         game.flashHud = 0.4;
@@ -177,7 +178,7 @@ class Player {
     }
 
     const wasAir = !this.onGround, vyBefore = this.vy;
-    moveEntity(this, dt, { dropThrough: this.dropT > 0 });
+    moveEntity(this, dt, { dropThrough: this.dropT > 0, dyn: true });
     if (this.hitWallL || this.hitWallR) { if (!this.onGround) this.dashMomentum = this.dashMomentum && false; }
     if (this.onGround) {
       this.coyote = P.COYOTE; this.airDashUsed = false;
@@ -205,6 +206,7 @@ class Player {
   }
 
   standingOnPlatform() {
+    if (this.plat) return true;
     const ty = Math.round((this.y + this.h) / TILE);
     const x0 = Math.floor(this.x / TILE), x1 = Math.floor((this.x + this.w - 0.001) / TILE);
     let plat = false;
@@ -213,6 +215,7 @@ class Player {
   }
 
   recordSafe() {
+    if (this.plat) return;
     const ty = Math.round((this.y + this.h) / TILE);
     const l = Math.floor((this.x - 10) / TILE), r = Math.floor((this.x + this.w + 10) / TILE);
     for (let tx = l; tx <= r; tx++) {
@@ -269,13 +272,13 @@ class Player {
   checkHits(game) {
     const hb = this.hitbox();
     const a = this.atk;
-    let hitSomething = false;
+    let hitSomething = false, wantRecoil = false;
     for (const e of game.hittables()) {
       if (e.dead || a.hit.has(e) || !aabb(hb, e)) continue;
       a.hit.add(e);
-      e.hurt(a.def.dmg, this, a.type);
-      hitSomething = true;
-      this.soul = Math.min(99, this.soul + P.SOUL_HIT);
+      const res = e.hurt(a.def.dmg, this, a.type);
+      hitSomething = true; if (!e.noRecoil) wantRecoil = true;
+      if (res !== false && !e.noSoul) this.soul = Math.min(99, this.soul + (this.soulGain || P.SOUL_HIT));
       const hx = (Math.max(hb.x, e.x) + Math.min(hb.x + hb.w, e.x + e.w)) / 2;
       const hy = (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
       FX.burst(hx, hy, 10, { colors: ['#ffffff', '#bff6ff', '#fff3a0'], speed: 190, life: 0.25, grav: 0, size: 2 });
@@ -284,7 +287,7 @@ class Player {
     if (hitSomething) {
       FX.stop(a.type === 'g3' ? 6 : 4); FX.shake(a.type === 'g3' ? 3 : 2, 0.12);
       if (a.type === 'down') { if (!a.pogoed) { a.pogoed = true; this.pogo(); } }
-      else if (a.type !== 'up') { this.recoilT = 0.07; this.recoilV = -this.facing * 110; }
+      else if (a.type !== 'up' && this.recoilT <= 0 && wantRecoil) { this.recoilT = 0.07; this.recoilV = -this.facing * 110; }
     }
     // rebote en pinchos
     if (a.type === 'down' && !a.pogoed && World.rectSpike(hb.x, hb.y, hb.w, hb.h)) {
@@ -336,6 +339,15 @@ class Player {
     if (this.invulnT > 0 && this.hurtT <= 0 && Math.floor(this.invulnT * 20) % 2 === 0) return;
     // pelo (detrás)
     const hs = this.hair;
+    const day = typeof Game !== 'undefined' && Game.room && Game.room.theme === 'day';
+    if (day) {   // contorno oscuro para leerse sobre fondos claros
+      ctx.strokeStyle = '#1c1018'; ctx.lineCap = 'round';
+      for (let i = 1; i < hs.length; i++) {
+        ctx.lineWidth = Math.max(1.5, 4.5 - i * 0.5) + 2;
+        ctx.beginPath(); ctx.moveTo(Math.round(hs[i - 1].x), Math.round(hs[i - 1].y)); ctx.lineTo(Math.round(hs[i].x), Math.round(hs[i].y)); ctx.stroke();
+      }
+      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawKaen(ctx, this.cx + ox, this.y + this.h + oy, this.facing, this.anim(), this.animT, '#1c1018');
+    }
     ctx.strokeStyle = '#d9dcef'; ctx.lineCap = 'round';
     for (let i = 1; i < hs.length; i++) {
       ctx.lineWidth = Math.max(1.5, 4.5 - i * 0.5);
@@ -348,7 +360,7 @@ class Player {
     const flash = this.hurtT > 0 && Math.floor(this.hurtT * 30) % 2 === 0 ? '#ffffff' : null;
     drawKaen(ctx, this.cx, this.y + this.h, this.facing, this.anim(), this.animT, flash);
     if (this.healing) {
-      const k = this.healT / P.HEAL_T;
+      const k = this.healT / (this.healTime || P.HEAL_T);
       ctx.strokeStyle = '#bff6ff'; ctx.globalAlpha = 0.8; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(this.cx, this.cy, 16, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;

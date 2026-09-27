@@ -3,7 +3,7 @@
 class Boss extends Enemy {
   constructor(x, y, room) {
     super(x - 14, y - 36, 28, 36, 36);
-    this.room = room; this.name = 'GUARDIÁN HUECO';
+    this.room = room; this.key = 'guardian'; this.name = 'GUARDIÁN HUECO';
     this.state = 'dormant'; this.st = 0; this.facing = -1; this.last = null; this.phase2 = false;
     this.deathColors = ['#ff3a5c', '#ffffff', '#ffb0c0'];
     this.contact = 1;
@@ -118,7 +118,7 @@ class Boss extends Enemy {
           this.dead = true;
           FX.burst(this.cx, this.cy, 60, { colors: ['#ff3a5c', '#ffffff', '#ffd28a', '#bff6ff'], speed: 260, life: 0.9 });
           FX.ring(this.cx, this.cy, '#ffffff', 60); FX.shake(8, 0.5);
-          Game.victory();
+          Game.victory(this);
         }
         break;
     }

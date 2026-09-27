@@ -52,7 +52,8 @@ const Touch = (() => {
     b.classList.remove('on'); Input.setVirtual(b.dataset.action, false);
   }
 
-  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause';
+  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'levelclear';
+  const toLogical = (cx, cy) => { const d = window.devicePixelRatio || 1; return [(cx * d - offX) / scale, (cy * d - offY) / scale]; };
 
   function onStart(e) {
     enable();
@@ -62,6 +63,7 @@ const Touch = (() => {
       if (menuState()) {
         // tocar en cualquier parte = comenzar / continuar
         touches.set(t.identifier, { kind: 'tap' });
+        if (Game.state === 'title') { const [lx, ly] = toLogical(x, y); Game.menuTap(lx, ly); continue; }
         Input.setVirtual(Game.state === 'pause' ? 'pause' : 'start', true);
         continue;
       }
@@ -130,6 +132,8 @@ const Touch = (() => {
   document.addEventListener('touchend', onEnd, opts);
   document.addEventListener('touchcancel', onEnd, opts);
   document.addEventListener('contextmenu', e => e.preventDefault());
+  // Clic de ratón en el menú del título (escritorio)
+  document.addEventListener('mousedown', e => { if (Game.state === 'title') { const [lx, ly] = toLogical(e.clientX, e.clientY); Game.menuTap(lx, ly); } });
   document.addEventListener('gesturestart', e => e.preventDefault());   // iOS: pellizcar para zoom
   document.addEventListener('dblclick', e => e.preventDefault());
   window.addEventListener('blur', releaseAll);

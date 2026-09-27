@@ -44,6 +44,7 @@ class Walker extends Enemy {
     if (this.hitWallL) this.dir = 1; if (this.hitWallR) this.dir = -1;
   }
   draw(ctx) {
+    if (this.day) return drawOutlined(ctx, c => this.drawDay(ctx, c), this.flashT > 0);
     const x = Math.round(this.x), y = Math.round(this.y), f = this.flashT > 0;
     const step = Math.floor(this.t * 8) % 2;
     ctx.fillStyle = f ? '#fff' : '#1a1422';
@@ -60,6 +61,17 @@ class Walker extends Enemy {
     ctx.fillStyle = '#ff9a3c'; ctx.fillRect(this.dir > 0 ? hx + 2 : hx, y + 7, 2, 2);
   }
 }
+
+// Variante diurna: escarabajo dorado
+Walker.prototype.drawDay = function (ctx, c) {
+  const x = Math.round(this.x), y = Math.round(this.y), step = Math.floor(this.t * 8) % 2;
+  const R = (col, a, b, w, h) => { ctx.fillStyle = c(col); ctx.fillRect(x + a, y + b, w, h); };
+  R('#3a2a1a', 2 + step, this.h - 3, 3, 3); R('#3a2a1a', 10 - step, this.h - 3, 3, 3);
+  R('#d89a2a', 1, 3, 14, 8); R('#d89a2a', 3, 1, 10, 2); R('#ffd86a', 3, 2, 8, 2);
+  R('#a8641a', 4, 5, 1, 5); R('#a8641a', 8, 5, 1, 5); R('#a8641a', 12, 5, 1, 5);
+  const hx = this.dir > 0 ? 13 : -1;
+  R('#6a3a1a', hx, 6, 4, 5); R('#ff3a2a', this.dir > 0 ? hx + 2 : hx, 7, 2, 2);
+};
 
 // Zumbador: volador que persigue
 class Flyer extends Enemy {
@@ -85,6 +97,7 @@ class Flyer extends Enemy {
     moveEntity(this, dt, { dropThrough: true });
   }
   draw(ctx) {
+    if (this.day) return drawOutlined(ctx, c => this.drawDay(ctx, c), this.flashT > 0);
     const x = Math.round(this.x), y = Math.round(this.y + Math.sin(this.t * 10) * 1), f = this.flashT > 0;
     const wing = Math.floor(this.t * 20) % 2;
     ctx.fillStyle = f ? '#fff' : 'rgba(190,255,210,0.7)';
@@ -98,3 +111,15 @@ class Flyer extends Enemy {
     ctx.fillStyle = f ? '#fff' : '#1b2b20'; ctx.fillRect(x + 5, y + 11, 2, 2);
   }
 }
+
+// Variante diurna: gaviota de las cumbres
+Flyer.prototype.drawDay = function (ctx, c) {
+  const x = Math.round(this.x), y = Math.round(this.y + Math.sin(this.t * 10)), wing = Math.floor(this.t * 16) % 2;
+  const R = (col, a, b, w, h) => { ctx.fillStyle = c(col); ctx.fillRect(x + a, y + b, w, h); };
+  if (wing) { R('#e8eef8', -5, -1, 7, 3); R('#e8eef8', 10, -1, 7, 3); R('#3a4a5a', -5, -1, 2, 2); R('#3a4a5a', 15, -1, 2, 2); }
+  else { R('#e8eef8', -4, 5, 6, 3); R('#e8eef8', 10, 5, 6, 3); }
+  R('#ffffff', 1, 2, 10, 8); R('#c8d4e4', 2, 7, 8, 3);
+  const look = Math.sign(this.vx) || 1;
+  R('#ffb020', look > 0 ? 10 : -1, 5, 3, 2);
+  R(this.aggro ? '#ff2a2a' : '#1c1018', look > 0 ? 7 : 3, 4, 2, 2);
+};

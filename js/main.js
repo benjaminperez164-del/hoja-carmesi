@@ -40,6 +40,7 @@ function shade(hex, k) {
   return `rgb(${r},${g},${b})`;
 }
 function renderRoomTiles(room) {
+  if (room.theme === 'day') return renderDayTiles(room);
   const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
   const g = c.getContext('2d');
   const base = room.tint;
@@ -81,19 +82,160 @@ function renderRoomTiles(room) {
   room.canvas = c;
 }
 
+// Paleta diurna: roca cálida media-oscura con contorno negro y césped brillante (alto contraste con el cielo claro)
+function renderDayTiles(room) {
+  const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
+  const g = c.getContext('2d');
+  const OL = '#241610';
+  const isSolid = (x, y) => World.tileAt(x, y) === T_SOLID;
+  for (let y = 0; y < room.h; y++) for (let x = 0; x < room.w; x++) {
+    const t = room.grid[y][x], px = x * TILE, py = y * TILE, wx = x + room.ox, wy = y + room.oy;
+    if (t === T_SOLID) {
+      const r = hash(wx, wy);
+      g.fillStyle = r > 0.5 ? '#8a6446' : '#83603f'; g.fillRect(px, py, TILE, TILE);
+      g.fillStyle = '#6a4a32';
+      g.fillRect(px, py + 7, TILE, 1);
+      g.fillRect(px + ((wy % 2) ? 5 : 11), py, 1, 7); g.fillRect(px + ((wy % 2) ? 12 : 3), py + 8, 1, 8);
+      g.fillStyle = '#a57c55'; g.fillRect(px + ((wy % 2) ? 1 : 6), py + 1, 3, 1);
+      if (r > 0.82) { g.fillStyle = '#5f9e4a'; g.fillRect(px + 9, py + 10, 3, 2); }
+      const up = isSolid(wx, wy - 1), dn = isSolid(wx, wy + 1), lf = isSolid(wx - 1, wy), rt = isSolid(wx + 1, wy);
+      g.fillStyle = OL;
+      if (!up) g.fillRect(px, py, TILE, 1);
+      if (!dn) g.fillRect(px, py + TILE - 2, TILE, 2);
+      if (!lf) g.fillRect(px, py, 2, TILE);
+      if (!rt) g.fillRect(px + TILE - 2, py, 2, TILE);
+      if (!up) {
+        g.fillStyle = '#3f9a3a'; g.fillRect(px, py + 1, TILE, 4);
+        g.fillStyle = '#7ddc5a'; g.fillRect(px, py + 1, TILE, 2);
+        g.fillStyle = '#2a6a2a'; g.fillRect(px, py + 5, TILE, 1);
+        g.fillStyle = '#7ddc5a'; g.fillRect(px + (r * 12 | 0), py - 2, 1, 3); g.fillRect(px + ((r * 97) % 13 | 0), py - 1, 1, 2);
+        if (r > 0.7) { g.fillStyle = r > 0.85 ? '#ff6fa8' : '#ffe14a'; g.fillRect(px + 6, py - 2, 2, 2); }
+        if (!lf) { g.fillStyle = OL; g.fillRect(px, py, 2, 6); }
+        if (!rt) { g.fillStyle = OL; g.fillRect(px + TILE - 2, py, 2, 6); }
+      }
+    } else if (t === T_SPIKE) {
+      // zarzas espinosas: magenta oscuro con puntas claras y contorno
+      g.fillStyle = OL; g.fillRect(px, py + 8, TILE, 8);
+      g.fillStyle = '#6a1f5a'; g.fillRect(px, py + 10, TILE, 6);
+      for (let i = 0; i < 4; i++) {
+        const sx = px + i * 4;
+        g.fillStyle = OL; g.beginPath(); g.moveTo(sx - 0.5, py + 12); g.lineTo(sx + 2, py + 3); g.lineTo(sx + 4.5, py + 12); g.fill();
+        g.fillStyle = '#b8327e'; g.beginPath(); g.moveTo(sx + 0.5, py + 12); g.lineTo(sx + 2, py + 5); g.lineTo(sx + 3.5, py + 12); g.fill();
+        g.fillStyle = '#ffd0ec'; g.fillRect(sx + 2, py + 5, 1, 2);
+      }
+    } else if (t === T_PLAT) {
+      g.fillStyle = OL; g.fillRect(px, py, TILE, 7);
+      g.fillStyle = '#c07a3c'; g.fillRect(px, py + 1, TILE, 4);
+      g.fillStyle = '#f0b060'; g.fillRect(px, py + 1, TILE, 1);
+      g.fillStyle = OL; g.fillRect(px + 3, py + 7, 2, 3); g.fillRect(px + 11, py + 7, 2, 3);
+    }
+  }
+  room.canvas = c;
+}
+
+// ---------- Guardado (localStorage) ----------
+const SAVE_KEY = 'hojaCarmesi.save.v1';
+const Save = {
+  load() { try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); return d && d.v === 1 ? d : null; } catch (e) { return null; } },
+  write(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
+  clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
+};
+const ENEMY_TYPES = ['walker', 'flyer', 'shield', 'turret'];
+
 // ---------- Estado del juego ----------
 const Game = {
   state: 'title', t: 0, player: new Player(), enemies: [], hazards: [], objs: [], boss: null,
   cam: { x: 0, y: 0 }, room: null, banner: null, toasts: [], fade: 0, fadeDir: 0,
-  respawn: { room: 'santuario', tx: 14, ty: 15 }, bossDown: false, shard: false, killed: new Set(),
+  respawn: { room: 'santuario', tx: 14, ty: 15 }, beaten: {}, secrets: new Set(), killed: new Set(),
+  dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0,
   flashHud: 0, deadT: 0, victoryT: 0, playTime: 0, timeScale: 1, slowT: 0, titleT: 0,
 
-  hittables() { const l = this.enemies.filter(e => !e.dead); if (this.boss && !this.boss.dead) l.push(this.boss); return l; },
+  hittables() {
+    const l = this.enemies.filter(e => !e.dead);
+    if (this.boss && !this.boss.dead) l.push(this.boss);
+    for (const w of this.props) if (!w.dead) l.push(w);
+    for (const h of this.hazards) if (h.hittable && !h.dead) l.push(h);
+    return l;
+  },
+  get level() { return this.room ? this.room.level : 1; },
+  applyUpgrades() {
+    const p = this.player;
+    p.soulGain = this.secrets.has('cristal') ? 17 : P.SOUL_HIT;
+    p.healTime = this.secrets.has('cristal') ? 0.62 : P.HEAL_T;
+  },
+  saveGame() {
+    const ok = Save.write({
+      v: 1, level: this.level, respawn: this.respawn, maxHp: this.player.maxHp,
+      secrets: [...this.secrets], beaten: this.beaten, playTime: this.playTime,
+      visited: World.rooms.filter(r => r.visited).map(r => r.id),
+    });
+    return ok;
+  },
+  continueGame() {
+    const d = Save.load(); if (!d) return this.newGame();
+    this.player = new Player();
+    this.player.maxHp = d.maxHp || 5;
+    this.beaten = Object.assign({}, d.beaten || {}); this.secrets = new Set(d.secrets || []);
+    this.killed = new Set(); this.playTime = d.playTime || 0;
+    World.rooms.forEach(r => { r.visited = (d.visited || []).includes(r.id); });
+    this.restoreWalls();
+    this.respawn = d.respawn && World.byId[d.respawn.room] ? d.respawn : { room: 'santuario', tx: 14, ty: 15 };
+    this.applyUpgrades();
+    this.spawnAtRespawn();
+    this.state = 'play';
+    this.toast('Partida cargada: ' + World.byId[this.respawn.room].name, 3);
+  },
+  // Aplica/revierte muros secretos rotos en la rejilla de las salas
+  restoreWalls() {
+    for (const r of World.rooms) for (const w of r.walls) {
+      const t = this.secrets.has(w.id) ? T_EMPTY : T_SOLID;
+      let changed = false;
+      for (let j = w.y; j < w.y + w.h; j++) for (let i = w.x; i < w.x + w.w; i++) if (r.grid[j][i] !== t) { r.grid[j][i] = t; changed = true; }
+      if (changed) renderRoomTiles(r);
+    }
+  },
+  breakWall(w) {
+    this.secrets.add(w.id);
+    this.restoreWalls();
+    FX.burst(w.x + w.w / 2, w.y + w.h / 2, 30, { colors: ['#a57c55', '#e6c48a', '#241610'], speed: 160, life: 0.7 });
+    FX.shake(5, 0.3); FX.stop(6);
+    this.toast('¡Un pasaje oculto!', 2.5);
+  },
+  openTitle() {
+    this.state = 'title'; this.titleT = 0; FX.clear();
+    const has = !!Save.load();
+    this.menu = { items: has ? ['continue', 'new'] : ['new'], sel: 0, confirm: null };
+  },
+  menuAction(item) {
+    const m = this.menu;
+    if (m.confirm) {
+      if (item === 'yes') { Save.clear(); this.newGame(); }
+      else m.confirm = null;
+      return;
+    }
+    if (item === 'continue') this.continueGame();
+    else if (item === 'new') { if (Save.load()) { m.confirm = { sel: 0 }; } else this.newGame(); }
+  },
+  menuButtons() {
+    const m = this.menu; if (!m) return [];
+    if (m.confirm) return [{ id: 'no', label: 'No', x: 180, y: 150, w: 56, h: 18 }, { id: 'yes', label: 'Sí, borrar', x: 244, y: 150, w: 56, h: 18 }];
+    const labels = { continue: 'Continuar', new: 'Nueva partida' };
+    const w = 92, gap = 10, total = m.items.length * w + (m.items.length - 1) * gap;
+    return m.items.map((id, i) => ({ id, label: labels[id], x: 327 - total / 2 + i * (w + gap), y: 226, w, h: 18 }));
+  },
+  // Toque / clic en coordenadas lógicas (480x272)
+  menuTap(lx, ly) {
+    if (this.state !== 'title' || !this.menu) return false;
+    for (const b of this.menuButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 6 && ly <= b.y + b.h + 6) { this.menuAction(b.id); return true; }
+    if (!this.menu.confirm && this.menu.items.length === 1) { this.menuAction(this.menu.items[0]); return true; }
+    return false;
+  },
 
   newGame() {
     this.player = new Player();
-    this.bossDown = false; this.shard = false; this.playTime = 0; this.killed = new Set();
+    this.beaten = {}; this.secrets = new Set(); this.playTime = 0; this.killed = new Set();
     World.rooms.forEach(r => { r.visited = false; });
+    this.restoreWalls(); this.applyUpgrades();
     this.resetBossEncounter();
     this.respawn = { room: 'santuario', tx: 14, ty: 15 };
     this.spawnAtRespawn();
@@ -113,25 +255,39 @@ const Game = {
   // Reinicia por completo el combate del jefe: puertas abiertas en TODAS las salas, proyectiles fuera,
   // y el jefe se recrea con vida completa en estado previo a la intro (al volver a entrar en su sala).
   resetBossEncounter() {
-    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
+    this.syncDoors();
     this.hazards = [];
     this.slowT = 0;
     if (this.boss) this.boss = null;
+  },
+  // Puertas de bloqueo: siempre abiertas fuera del combate. Puertas de salida: abiertas si su jefe fue derrotado.
+  syncDoors() {
+    World.rooms.forEach(r => r.doors.forEach(d => { d.active = d.kind === 'exit' ? !this.beaten[d.boss] : false; }));
   },
   enterRoom(room, snap) {
     // Salir de una sala (o reaparecer) nunca deja puertas cerradas atrás
     this.resetBossEncounter();
     this.room = World.cur = room;
     this.enemies = []; this.hazards = []; this.objs = []; this.boss = null;
+    this.roomT = 0;
+    this.dyn = World.dyn = room.movers.map(d => new Mover(room, d)).concat(room.crumbles.map(d => new Crumble(room, d)));
+    this.dyn.forEach(d => d.update && d.kind === 'mover' && d.update(0, 0));
+    this.winds = room.winds.map(d => new Wind(room, d));
+    this.props = room.walls.filter(w => !this.secrets.has(w.id)).map(w => new BreakWall(room, w));
+    this.player.plat = null;
     room.objs.forEach((o, idx) => {
       const x = room.px + o.tx * TILE, y = room.py + o.ty * TILE;
       const kid = room.id + ':' + idx;
-      if ((o.type === 'walker' || o.type === 'flyer') && this.killed.has(kid)) return;  // los enemigos muertos no vuelven
-      if (o.type === 'walker') this.enemies.push(Object.assign(new Walker(x, y), { kid }));
-      else if (o.type === 'flyer') this.enemies.push(Object.assign(new Flyer(x, y), { kid }));
-      else if (o.type === 'boss' && !this.bossDown) this.boss = new Boss(x, y, room);
+      // los enemigos muertos no vuelven (salvo al descansar en un banco)
+      if (ENEMY_TYPES.includes(o.type) && (this.killed.has(kid) || (window.GAME && window.GAME.noEnemies))) return;
+      const add = e => { e.kid = kid; e.day = !!o.day || room.theme === 'day'; this.enemies.push(e); };
+      if (o.type === 'walker') add(new Walker(x, y));
+      else if (o.type === 'flyer') add(new Flyer(x, y));
+      else if (o.type === 'shield') add(new Shielder(x, y));
+      else if (o.type === 'turret') add(new Turret(x, y));
+      else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = o.boss === 'heraldo' ? new Herald(x, y, room) : new Boss(x, y, room);
+      else if ((o.type === 'shard' || o.type === 'cristal') && !this.secrets.has(o.type)) this.objs.push({ type: o.type, x: x - 5, y: y - 14, w: 10, h: 12, hit: { x: x - 10, y: y - 26, w: 20, h: 26 } });
       else if (o.type === 'bench') this.objs.push({ type: 'bench', x: x - 12, y: y - 10, w: 24, h: 10, tx: o.tx, ty: o.ty });
-      else if (o.type === 'shard' && !this.shard) this.objs.push({ type: 'shard', x: x - 5, y: y - 14, w: 10, h: 12 });
       else if (o.type === 'sign') this.objs.push({ type: 'sign', x: x - 4, y: y - 14, w: 8, h: 14, text: o.text });
     });
     if (!room.visited || snap) this.banner = { text: room.name, t: 0 };
@@ -139,20 +295,22 @@ const Game = {
     if (snap) this.snapCam();
   },
   startBoss(b) {
-    this.room.doors.forEach(d => d.active = true);
+    this.room.doors.forEach(d => { if (d.kind === 'lock') d.active = true; });
     this.banner = { text: b.name, t: 0, boss: true };
     FX.burst(this.room.px + 8, this.room.py + 10 * TILE, 20, { colors: ['#ff3a5c', '#ffffff'], speed: 100, grav: 0 });
   },
-  bossDefeated() {
+  bossDefeated(b) {
     // El jefe queda derrotado desde ya: aunque algo golpeara al jugador durante la animación, no se reinicia
-    this.bossDown = true; this.slowT = 1.8;
+    this.beaten[b.key || 'guardian'] = true; this.slowT = 1.8;
     this.hazards = []; this.player.invulnT = 99;
-    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
+    this.syncDoors();
+    this.saveGame();
   },
-  victory() {
-    this.bossDown = true; this.player.invulnT = 0;
-    World.rooms.forEach(r => r.doors.forEach(d => d.active = false));
-    this.state = 'victory'; this.victoryT = 0;
+  victory(b) {
+    this.player.invulnT = 0;
+    this.syncDoors();
+    if ((b && b.key) === 'heraldo') { this.state = 'victory'; this.victoryT = 0; Save.write(Object.assign(Save.load() || {}, { v: 1, completed: true })); }
+    else { this.state = 'levelclear'; this.clearT = 0; }
   },
   playerDied() { this.state = 'dying'; this.deadT = 0; FX.shake(6, 0.5); },
   toast(text, t) { this.toasts.push({ text, t: 0, life: t || 2.5 }); if (this.toasts.length > 3) this.toasts.shift(); },
@@ -171,13 +329,27 @@ const Game = {
     Input.update();
     if (this.state === 'title') {
       this.titleT += dt;
-      if (Input.pressed('start') || Input.pressed('jump')) this.newGame();
+      if (!this.menu) this.openTitle();
+      const m = this.menu, btns = this.menuButtons();
+      const cur = m.confirm ? m.confirm : m;
+      const n = btns.length;
+      if (Input.pressed('up') || Input.pressed('left')) cur.sel = (cur.sel + n - 1) % n;
+      if (Input.pressed('down') || Input.pressed('right')) cur.sel = (cur.sel + 1) % n;
+      if (m.confirm && Input.pressed('pause')) m.confirm = null;
+      else if (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.menuAction(btns[cur.sel].id);
+      return;
+    }
+    if (this.state === 'levelclear') {
+      this.clearT += dt; FX.update(dt);
+      if ((this.clearT > 1.5 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.clearT > 6) {
+        this.state = 'play'; this.toast('Se ha abierto un camino al este: Cumbres del Alba', 4);
+      }
       return;
     }
     if (this.state === 'pause') { if (Input.pressed('pause') || Input.pressed('start')) this.state = 'play'; return; }
     if (this.state === 'victory') {
       this.victoryT += dt; FX.update(dt);
-      if (this.victoryT > 1.5 && (Input.pressed('start') || Input.pressed('jump'))) { this.state = 'title'; this.titleT = 0; FX.clear(); }
+      if (this.victoryT > 1.5 && (Input.pressed('start') || Input.pressed('jump'))) this.openTitle();
       return;
     }
     if (this.state === 'play' && (Input.pressed('pause') || Input.pressed('start'))) { this.state = 'pause'; return; }
@@ -198,6 +370,11 @@ const Game = {
     this.playTime += dt;
 
     const p = this.player;
+    this.roomT += dt;
+    for (const d of this.dyn) d.update(dt, this.roomT, p);
+    if (p.plat && p.plat.solid && p.spikeT <= 0) { p.x += p.plat.dx; p.y += p.plat.dy; }
+    p.inWind = false;
+    if (p.spikeT <= 0 && !p.sitting) for (const w of this.winds) w.apply(p, dt);
     p.update(dt, this);
     if (this.state !== 'play') return;
 
@@ -206,12 +383,20 @@ const Game = {
       if (o.type === 'bench' && aabb(p, { x: o.x - 4, y: o.y - 20, w: o.w + 8, h: 30 }) && p.onGround && !p.sitting && Input.pressed('up')) {
         p.sitting = true; p.x = o.x + o.w / 2 - p.w / 2; p.hp = p.maxHp; p.atk = null; p.dashT = 0;
         this.respawn = { room: this.room.id, tx: o.tx, ty: o.ty };
+        this.killed.clear();                      // descansar revive a los enemigos (estilo Hollow Knight)
         this.enterRoom(this.room, false); p.sitting = true;
+        const saved = this.saveGame();
         FX.ring(p.cx, p.cy, '#ffd28a', 34); FX.burst(p.cx, p.cy, 18, { colors: ['#ffd28a', '#ffffff'], speed: 90, grav: -30 });
-        this.toast('Descansas en el banco. Salud restaurada y progreso guardado.', 3);
+        this.toast(saved ? 'Descansas en el banco. Salud restaurada y progreso guardado.' : 'Descansas en el banco. (No se pudo guardar)', 3);
       }
-      if (o.type === 'shard' && !o.taken && aabb(p, o)) {
-        o.taken = true; this.shard = true; p.maxHp++; p.hp = p.maxHp;
+      if (o.type === 'cristal' && !o.taken && aabb(p, o.hit || o)) {
+        o.taken = true; this.secrets.add('cristal'); this.applyUpgrades();
+        p.soul = 99;
+        FX.ring(o.x + 5, o.y + 6, '#ffb020', 44); FX.burst(o.x + 5, o.y + 6, 30, { colors: ['#ffb020', '#ffffff', '#fff4c0'], speed: 150, grav: 0 }); FX.stop(10);
+        this.toast('¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', 4); this.flashHud = 0.6;
+      }
+      if (o.type === 'shard' && !o.taken && aabb(p, o.hit || o)) {
+        o.taken = true; this.secrets.add('shard'); p.maxHp++; p.hp = p.maxHp;
         FX.ring(o.x + 5, o.y + 6, '#ffffff', 40); FX.burst(o.x + 5, o.y + 6, 30, { colors: ['#ffffff', '#bff6ff'], speed: 150, grav: 0 }); FX.stop(10);
         this.toast('¡Fragmento de máscara! Salud máxima +1', 3.5); this.flashHud = 0.6;
       }
@@ -228,11 +413,13 @@ const Game = {
     // daño por contacto
     if (p.hp > 0 && p.spikeT <= 0) {
       const body = { x: p.x + 1, y: p.y + 2, w: p.w - 2, h: p.h - 3 };
-      for (const e of this.hittables()) {
+      const bodies = this.enemies.filter(e => !e.dead);
+      if (this.boss && !this.boss.dead) bodies.push(this.boss);
+      for (const e of bodies) {
         if (this.boss === e && (e.state === 'dormant' || e.state === 'dying')) continue;
-        if (aabb(body, e)) { p.hurt(e.contact, e.cx, this); break; }
+        if (e.contact && aabb(body, e)) { p.hurt(e.contact, e.cx, this); break; }
       }
-      for (const h of this.hazards) if (aabb(body, h)) { p.hurt(1, h.x + h.w / 2, this); break; }
+      for (const h of this.hazards) if (h.harmful !== false && aabb(body, h)) { p.hurt(1, h.x + h.w / 2, this); break; }
     }
 
     // transición de sala
@@ -267,11 +454,68 @@ const Game = {
       this.drawHUD(sctx);
       if (this.state === 'pause') this.drawPause(sctx);
       if (this.state === 'victory') this.drawVictory(sctx);
+      if (this.state === 'levelclear') this.drawLevelClear(sctx);
     }
     sctx.restore();
   },
 
+  drawDaySky(r, cx, cy) {
+    const grd = ctx.createLinearGradient(0, 0, 0, VH);
+    grd.addColorStop(0, '#5cb8f5'); grd.addColorStop(0.55, '#aee0ff'); grd.addColorStop(1, '#ffe2b0');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
+    // sol y rayos
+    const sx = VW * 0.8 - cx * 0.02, sy = 46;
+    ctx.fillStyle = 'rgba(255,244,200,0.25)'; ctx.beginPath(); ctx.arc(sx, sy, 44, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,244,200,0.45)'; ctx.beginPath(); ctx.arc(sx, sy, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff8dc'; ctx.beginPath(); ctx.arc(sx, sy, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,190,0.10)';
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(sx - 60 + i * 50, 0); ctx.lineTo(sx - 20 + i * 50, 0); ctx.lineTo(sx - 180 + i * 70, VH); ctx.lineTo(sx - 240 + i * 70, VH); ctx.fill(); }
+    // montañas lejanas y cercanas
+    const mount = (par, base, amp, col, seed) => {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, VH);
+      for (let x = 0; x <= VW + 20; x += 20) {
+        const wx = x + cx * par, i = Math.floor(wx / 60), f = (wx / 60) - i;
+        const h0 = hash(i, seed), h1 = hash(i + 1, seed);
+        const h = h0 + (h1 - h0) * (f * f * (3 - 2 * f));
+        ctx.lineTo(x, base - h * amp - (cy * par * 0.2) % 30);
+      }
+      ctx.lineTo(VW, VH); ctx.closePath(); ctx.fill();
+    };
+    mount(0.08, 190, 90, '#b4c8ea', 3);
+    // nubes
+    for (let i = 0; i < 7; i++) {
+      const par = 0.12 + (i % 3) * 0.06;
+      const x = ((hash(i, 41) * 900 - cx * par + this.t * (4 + i)) % 620 + 620) % 620 - 70;
+      const y = 20 + hash(i, 43) * 90 - cy * par * 0.2 % 20;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(x + k * 12, y + (k % 2 ? -5 : 0), 10 + (k % 2) * 4, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = 'rgba(200,220,245,0.9)'; ctx.fillRect(x - 8, y + 6, 52, 4);
+    }
+    mount(0.22, 235, 70, '#9bb4de', 7);
+    // ruinas lejanas (columnas) sobre la cresta
+    ctx.fillStyle = '#a7bde3';
+    const sp = 90, ox = -((cx * 0.22) % sp) - sp;
+    for (let x = ox, i = Math.floor(cx * 0.22 / sp); x < VW + sp; x += sp, i++) {
+      if (hash(i, 9) < 0.5) continue;
+      const h = 30 + hash(i, 11) * 40, top = 200 - h;
+      ctx.fillRect(Math.round(x), top, 8, h + 60); ctx.fillRect(Math.round(x + 26), top + 10, 8, h + 50); ctx.fillRect(Math.round(x - 3), top, 40, 5);
+    }
+  },
+  drawFalls(r) {
+    for (const f of r.falls) {
+      const x = r.px + f.x * TILE, y = r.py + f.y * TILE, w = f.w * TILE, h = f.h * TILE;
+      ctx.fillStyle = 'rgba(160,220,255,0.55)'; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = 'rgba(235,250,255,0.8)';
+      for (let i = 0; i < w; i += 3) {
+        const off = (this.t * 140 + i * 29) % 24;
+        for (let yy = -24 + off; yy < h; yy += 24) ctx.fillRect(x + i, Math.max(y, y + yy), 1, Math.min(10, h - yy));
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 5; i++) { const fx = x + ((i * 7 + this.t * 20) % w); ctx.beginPath(); ctx.arc(fx, y + h - 2, 3 + Math.sin(this.t * 6 + i) * 1.5, 0, Math.PI * 2); ctx.fill(); }
+    }
+  },
   drawBackground(r, cx, cy) {
+    if (r.theme === 'day') return this.drawDaySky(r, cx, cy);
     const grd = ctx.createLinearGradient(0, 0, 0, VH);
     grd.addColorStop(0, r.bg[0]); grd.addColorStop(1, r.bg[1]);
     ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
@@ -309,10 +553,21 @@ const Game = {
     for (const o of World.rooms) {
       if (o !== r && o.canvas && o.px < cx + VW && o.px + o.pw > cx && o.py < cy + VH && o.py + o.ph > cy) ctx.drawImage(o.canvas, o.px, o.py);
     }
+    this.drawFalls(r);
     if (r.canvas) ctx.drawImage(r.canvas, r.px, r.py);
-    // puertas del jefe
+    for (const w of this.winds) w.draw(ctx, this.t);
+    for (const d of this.dyn) d.draw(ctx);
+    for (const w of this.props) w.draw(ctx);
+    // puertas: bloqueo del jefe (rojo) / salida sellada (piedra con sello dorado)
     for (const d of r.doors) if (d.active) {
       const x = r.px + d.x * TILE, y = r.py + d.y * TILE;
+      if (d.kind === 'exit') {
+        ctx.fillStyle = '#241610'; ctx.fillRect(x, y - 2, TILE, d.h * TILE + 2);
+        ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + 2, y, TILE - 4, d.h * TILE);
+        ctx.fillStyle = '#ffd24a'; ctx.fillRect(x + 5, y + d.h * TILE / 2 - 4, 6, 8);
+        ctx.fillStyle = '#3a2e22'; for (let i = 8; i < d.h * TILE; i += 12) ctx.fillRect(x + 2, y + i, TILE - 4, 1);
+        continue;
+      }
       for (let i = 0; i < d.h * TILE; i += 4) {
         ctx.fillStyle = (Math.floor(this.t * 12) + i / 4) % 2 ? '#ff3a5c' : '#ff9ab0';
         ctx.fillRect(x + 4, y + i, 8, 3);
@@ -328,7 +583,7 @@ const Game = {
     ctx.restore();
     // viñeta
     const v = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.35, VW / 2, VH / 2, VH * 0.95);
-    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, r.theme === 'day' ? 'rgba(90,40,0,0.12)' : 'rgba(0,0,0,0.55)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, VW, VH);
     if (this.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.fade * 2)})`; ctx.fillRect(0, 0, VW, VH); }
     if (this.state === 'dying') { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.deadT / 1.2)})`; ctx.fillRect(0, 0, VW, VH); }
@@ -356,6 +611,12 @@ const Game = {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       ctx.fillStyle = 'rgba(191,246,255,0.3)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 9, 0, Math.PI * 2); ctx.fill();
       drawMask(ctx, x, y + b, 10, 12, true, '#ffffff');
+    } else if (o.type === 'cristal') {
+      const b = Math.round(Math.sin(this.t * 3) * 2);
+      ctx.fillStyle = 'rgba(255,176,32,0.35)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#241610'; ctx.beginPath(); ctx.moveTo(x + 5, y - 3 + b); ctx.lineTo(x + 12, y + 6 + b); ctx.lineTo(x + 5, y + 15 + b); ctx.lineTo(x - 2, y + 6 + b); ctx.fill();
+      ctx.fillStyle = '#ffb020'; ctx.beginPath(); ctx.moveTo(x + 5, y - 1 + b); ctx.lineTo(x + 10, y + 6 + b); ctx.lineTo(x + 5, y + 13 + b); ctx.lineTo(x, y + 6 + b); ctx.fill();
+      ctx.fillStyle = '#fff4c0'; ctx.fillRect(x + 4, y + 2 + b, 2, 5);
     } else if (o.type === 'sign') {
       ctx.fillStyle = '#4a3a2a'; ctx.fillRect(x + 3, y + 4, 2, 10);
       ctx.fillStyle = '#8a6a48'; ctx.fillRect(x - 2, y, 12, 6);
@@ -393,6 +654,10 @@ const Game = {
       g.globalAlpha = a;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       g.font = b.boss ? 'bold 18px Georgia, serif' : '15px Georgia, serif';
+      { const bw = g.measureText(b.text).width + 60, by = b.boss ? 70 : 58;
+        const gr = g.createLinearGradient(VW / 2 - bw / 2, 0, VW / 2 + bw / 2, 0);
+        gr.addColorStop(0, 'rgba(10,6,16,0)'); gr.addColorStop(0.2, 'rgba(10,6,16,0.55)'); gr.addColorStop(0.8, 'rgba(10,6,16,0.55)'); gr.addColorStop(1, 'rgba(10,6,16,0)');
+        g.fillStyle = gr; g.fillRect(VW / 2 - bw / 2, by - 14, bw, 30); }
       g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillText(b.text, VW / 2 + 1, (b.boss ? 70 : 58) + 1);
       g.fillStyle = b.boss ? '#ffb0c0' : '#eef0fa'; g.fillText(b.text, VW / 2, b.boss ? 70 : 58);
       g.strokeStyle = b.boss ? '#ff3a5c' : '#c8c0d8'; g.lineWidth = 0.8;
@@ -409,7 +674,7 @@ const Game = {
       g.fillStyle = bo.phase2 ? '#ff3a5c' : '#d8283f'; g.fillRect(x, y, w * (bo.hp / bo.maxHp), 5);
       g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x, y, w * (bo.hp / bo.maxHp), 1);
       g.font = '8px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
-      g.fillStyle = '#ffd0d8'; g.fillText(bo.name, VW / 2, y - 3);
+      g.fillStyle = 'rgba(10,4,12,0.85)'; g.fillText(bo.name, VW / 2 + 0.7, y - 2.3); g.fillStyle = '#ffd0d8'; g.fillText(bo.name, VW / 2, y - 3);
     }
     // carteles y avisos
     for (const o of this.objs) {
@@ -435,23 +700,29 @@ const Game = {
   bubble(g, text, x, y) {
     g.font = '7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     const w = g.measureText(text).width + 8;
+    x = Math.max(w / 2 + 2, Math.min(VW - w / 2 - 2, x));
     g.fillStyle = 'rgba(8,6,16,0.8)'; g.fillRect(x - w / 2, y - 5, w, 10);
     g.fillStyle = '#ffe8c0'; g.fillText(text, x, y + 0.5);
   },
   drawMinimap(g) {
-    const s = 0.5, mx = VW - 92, my = 8;
-    g.fillStyle = 'rgba(8,6,16,0.65)'; g.fillRect(mx - 4, my - 3, 88, 34);
-    for (const r of World.rooms) {
+    const lv = this.level, rooms = World.rooms.filter(r => r.level === lv);
+    const minX = Math.min(...rooms.map(r => r.ox)), maxX = Math.max(...rooms.map(r => r.ox + r.w));
+    const minY = Math.min(...rooms.map(r => r.oy)), maxY = Math.max(...rooms.map(r => r.oy + r.h));
+    const s = Math.min(80 / (maxX - minX), 28 / (maxY - minY)), mx = VW - 92, my = 8;
+    g.fillStyle = 'rgba(8,6,16,0.7)'; g.fillRect(mx - 4, my - 3, 88, 42);
+    g.font = '6px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillStyle = '#ffd28a';
+    g.fillText(lv === 2 ? 'Nivel 2 · Cumbres del Alba' : 'Nivel 1 · Reino Hueco', mx - 1, my + 34);
+    for (const r of rooms) {
       if (!r.visited) continue;
-      const x = mx + r.ox * s, y = my + (r.oy + 17) * s;
+      const x = mx + (r.ox - minX) * s, y = my + (r.oy - minY) * s;
       g.fillStyle = r === this.room ? 'rgba(255,210,138,0.55)' : 'rgba(200,192,216,0.35)';
       g.fillRect(x, y, r.w * s, r.h * s);
       g.strokeStyle = 'rgba(238,240,250,0.7)'; g.lineWidth = 0.5; g.strokeRect(x, y, r.w * s, r.h * s);
       if (r.objs.some(o => o.type === 'bench')) { g.fillStyle = '#ffd28a'; g.fillRect(x + r.w * s / 2 - 1, y + r.h * s - 4, 2, 2); }
-      if (r.boss && !this.bossDown) { g.fillStyle = '#ff3a5c'; g.fillRect(x + r.w * s / 2 - 1.5, y + r.h * s / 2 - 1.5, 3, 3); }
+      if (r.boss && !r.objs.some(o => o.type === 'boss' && this.beaten[o.boss])) { g.fillStyle = '#ff3a5c'; g.fillRect(x + r.w * s / 2 - 1.5, y + r.h * s / 2 - 1.5, 3, 3); }
     }
     const p = this.player;
-    if (Math.floor(this.t * 4) % 2) { g.fillStyle = '#ffffff'; g.fillRect(mx + p.cx / TILE * s - 1, my + (p.cy / TILE + 17) * s - 1, 2, 2); }
+    if (Math.floor(this.t * 4) % 2) { g.fillStyle = '#ffffff'; g.fillRect(mx + (p.cx / TILE - minX) * s - 1, my + (p.cy / TILE - minY) * s - 1, 2, 2); }
   },
 
   controlsList() {
@@ -527,10 +798,31 @@ const Game = {
     this.drawControls(g, 296, 101, 10.5);
     g.font = '7px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
     g.fillText(IS_TOUCH() ? 'Controles táctiles · también funciona con teclado o mando' : 'Mando: A saltar · X atacar · B/RB dash · Y/LB curar · Start pausa', 327, 211);
-    if (Math.floor(this.titleT * 2) % 2 === 0) {
-      g.font = 'bold 11px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca la pantalla para comenzar' : 'Pulsa ENTER o Z para comenzar', 327, 234);
+    const m = this.menu;
+    if (m) {
+      const btns = this.menuButtons(), cur = m.confirm ? m.confirm : m;
+      if (m.confirm) {
+        g.fillStyle = 'rgba(5,4,10,0.85)'; g.fillRect(0, 0, VW, VH);
+        g.fillStyle = '#1a1024'; g.fillRect(150, 100, 180, 80); g.strokeStyle = '#ff3a5c'; g.lineWidth = 1; g.strokeRect(150, 100, 180, 80);
+        g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.textAlign = 'center';
+        g.fillText('¿Empezar una nueva partida?', 240, 118);
+        g.font = '8px sans-serif'; g.fillStyle = '#ffb0c0'; g.fillText('Se borrará tu partida guardada.', 240, 134);
+      }
+      btns.forEach((b, i) => {
+        const sel = cur.sel === i;
+        g.fillStyle = sel ? 'rgba(255,58,92,0.85)' : 'rgba(8,6,16,0.75)'; g.fillRect(b.x, b.y, b.w, b.h);
+        g.strokeStyle = sel ? '#ffffff' : 'rgba(255,255,255,0.4)'; g.lineWidth = sel ? 1.2 : 0.6; g.strokeRect(b.x, b.y, b.w, b.h);
+        g.font = 'bold 9px sans-serif'; g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+      });
+      if (!m.confirm) {
+        g.font = '7px sans-serif'; g.fillStyle = '#a898c8';
+        g.font = '6.5px sans-serif'; g.fillText(IS_TOUCH() ? 'Toca una opción' : '↑↓ elegir · ENTER / Z confirmar', 327, 259); g.font = '7px sans-serif';
+        const d = Save.load();
+        if (d && d.respawn && World.byId[d.respawn.room]) { g.fillStyle = '#ffd28a'; g.fillText('Guardado: Nivel ' + (d.level || 1) + ' · ' + World.byId[d.respawn.room].name + (d.completed ? ' · ¡juego completado!' : ''), 327, 250); }
+      }
     }
-    g.font = '6px sans-serif'; g.fillStyle = '#6d6488'; g.fillText('Prototipo vertical slice · arte provisional procedural', 327, 262);
+    g.font = '6px sans-serif'; g.fillStyle = '#6d6488'; g.fillText('Prototipo vertical slice · arte provisional procedural', 327, 267);
   },
   drawPause(g) {
     g.fillStyle = 'rgba(5,4,10,0.8)'; g.fillRect(0, 0, VW, VH);
@@ -540,6 +832,21 @@ const Game = {
     g.font = '8px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
     g.fillText(IS_TOUCH() ? 'Toca la pantalla para continuar' : 'Pulsa ENTER o Esc para continuar', VW / 2, 225);
   },
+  drawLevelClear(g) {
+    const a = Math.min(1, this.clearT / 0.8);
+    g.fillStyle = `rgba(5,4,10,${0.7 * a})`; g.fillRect(0, 0, VW, VH);
+    g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText('NIVEL 1 COMPLETADO', VW / 2 + 2, 98);
+    g.fillStyle = '#ffd28a'; g.fillText('NIVEL 1 COMPLETADO', VW / 2, 96);
+    g.font = '12px Georgia, serif'; g.fillStyle = '#e8ecff';
+    g.fillText('El Guardián Hueco ha caído. Un sello se rompe al este…', VW / 2, 128);
+    g.font = 'italic 11px Georgia, serif'; g.fillStyle = '#aee0ff';
+    g.fillText('Siguiente: Nivel 2 — Cumbres del Alba', VW / 2, 148);
+    if (this.clearT > 1.5 && Math.floor(this.clearT * 2) % 2 === 0) {
+      g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 190);
+    }
+    g.globalAlpha = 1;
+  },
   drawVictory(g) {
     const a = Math.min(1, this.victoryT / 1.2);
     g.fillStyle = `rgba(5,4,10,${0.75 * a})`; g.fillRect(0, 0, VW, VH);
@@ -547,10 +854,11 @@ const Game = {
     g.font = 'bold 30px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText('¡VICTORIA!', VW / 2 + 2, 92);
     g.fillStyle = '#ffd28a'; g.fillText('¡VICTORIA!', VW / 2, 90);
     g.font = '12px Georgia, serif'; g.fillStyle = '#e8ecff';
-    g.fillText('El Guardián Hueco ha caído. El abismo guarda silencio.', VW / 2, 124);
+    g.fillText('El Heraldo del Alba ha caído. Kaen contempla el amanecer.', VW / 2, 124);
     const m = Math.floor(this.playTime / 60), s = Math.floor(this.playTime % 60);
     g.font = '9px sans-serif'; g.fillStyle = '#a898c8';
-    g.fillText(`Tiempo: ${m}:${String(s).padStart(2, '0')}   ·   Fragmento de máscara: ${this.shard ? 'encontrado' : 'no encontrado'}`, VW / 2, 146);
+    const found = ['shard', 'cristal'].filter(k => this.secrets.has(k)).length;
+    g.fillText(`Tiempo: ${m}:${String(s).padStart(2, '0')}   ·   Secretos: ${found}/2   ·   Fin del prototipo`, VW / 2, 146);
     if (this.victoryT > 1.5 && Math.floor(this.victoryT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para volver al título' : 'Pulsa ENTER para volver al título', VW / 2, 190);
     }
@@ -574,7 +882,7 @@ let acc = 0, last = performance.now();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000); last = now;
   let n = 0;
-  while (acc >= STEP && n < 5) { Game.update(STEP); acc -= STEP; n++; }
+  while (acc >= STEP && n < 5) { if (!(window.GAME && window.GAME.manual)) Game.update(STEP); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   Game.draw();
   requestAnimationFrame(frame);
@@ -585,6 +893,15 @@ requestAnimationFrame(frame);
 window.GAME = {
   Game, World, Input, FX,
   start() { if (Game.state === 'title') Game.newGame(); },
+  manual: false,
+  // Modo manual: el bucle deja de avanzar la simulación y las pruebas la avanzan de forma determinista
+  setManual(on) { this.manual = !!on; },
+  step(n, actions) {
+    const all = ['left', 'right', 'up', 'down', 'jump', 'attack', 'dash', 'heal', 'start', 'pause'];
+    if (actions) all.forEach(a => Input.setVirtual(a, actions.includes(a)));
+    for (let i = 0; i < n; i++) Game.update(STEP);
+    return Game.state;
+  },
   warp(roomId, tx, ty) {
     const r = World.byId[roomId], p = Game.player;
     p.reset(r.px + tx * TILE - p.w / 2, r.py + ty * TILE - p.h);
