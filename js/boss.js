@@ -109,15 +109,16 @@ class Boss extends Enemy {
         break;
       case 'dying':
         this.vx = 0;
-        if (Math.random() < 0.35) {
+        if (Math.random() < 0.55) {
           const ex = this.x + Math.random() * this.w, ey = this.y + Math.random() * this.h;
-          FX.burst(ex, ey, 8, { colors: ['#ff3a5c', '#ffffff', '#ffd28a'], speed: 120, life: 0.4, grav: 0 });
-          FX.shake(3, 0.1);
+          FX.burst(ex, ey, 14, { colors: ['#ff3a5c', '#ffffff', '#ffd28a'], speed: 160, life: 0.5, grav: 0 });
+          FX.ring(ex, ey, '#ff3a5c', 12 + Math.random() * 16); FX.shake(4, 0.12);
         }
         if (this.st > 1.8 && !this.dead) {
           this.dead = true;
-          FX.burst(this.cx, this.cy, 60, { colors: ['#ff3a5c', '#ffffff', '#ffd28a', '#bff6ff'], speed: 260, life: 0.9 });
-          FX.ring(this.cx, this.cy, '#ffffff', 60); FX.shake(8, 0.5);
+          FX.burst(this.cx, this.cy, 90, { colors: ['#ff3a5c', '#ffffff', '#ffd28a', '#bff6ff'], speed: 320, life: 1.1 });
+          FX.burst(this.cx, this.cy, 40, { colors: ['#ffffff', '#ff8899'], speed: 180, life: 0.7, grav: -40 });
+          FX.ring(this.cx, this.cy, '#ffffff', 80); FX.ring(this.cx, this.cy, '#ff3a5c', 50); FX.shake(12, 0.7); FX.stop(12);
           Game.victory(this);
         }
         break;

@@ -346,14 +346,15 @@ class Oracle extends Enemy {
         break;
       case 'dying':
         this.y = Math.min(this.floorY - this.h, this.y + 60 * dt);
-        if (Math.random() < 0.35) {
-          FX.burst(this.x + Math.random() * this.w, this.y + Math.random() * this.h, 8, { colors: this.deathColors, speed: 120, life: 0.4, grav: 0 });
-          FX.shake(3, 0.1);
+        if (Math.random() < 0.55) {
+          FX.burst(this.x + Math.random() * this.w, this.y + Math.random() * this.h, 14, { colors: this.deathColors, speed: 170, life: 0.5, grav: 0 });
+          FX.ring(this.cx, this.cy, '#7ad8ff', 14 + Math.random() * 20); FX.shake(4, 0.12);
         }
         if (this.st > 2.0 && !this.dead) {
           this.dead = true;
-          FX.burst(this.cx, this.cy, 70, { colors: ['#7ad8ff', '#ffffff', '#ff5ad0', '#ffd24a'], speed: 280, life: 1.0 });
-          FX.ring(this.cx, this.cy, '#ffffff', 70); FX.shake(8, 0.5);
+          FX.burst(this.cx, this.cy, 100, { colors: ['#7ad8ff', '#ffffff', '#ff5ad0', '#ffd24a'], speed: 340, life: 1.2 });
+          FX.burst(this.cx, this.cy, 50, { colors: ['#ffffff', '#ff5ad0'], speed: 200, life: 0.8, grav: -50 });
+          FX.ring(this.cx, this.cy, '#ffffff', 90); FX.ring(this.cx, this.cy, '#ff5ad0', 55); FX.shake(12, 0.7); FX.stop(12);
           Game.victory(this);
         }
         break;

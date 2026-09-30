@@ -99,6 +99,78 @@ class Wind {
   }
 }
 
+
+// Sello de cristal: solo el onda del Sable Cargado lo rompe
+class ChargeSeal {
+  constructor(room, d) {
+    this.room = room; this.d = d; this.id = d.id;
+    this.x = room.px + d.x * TILE - 6; this.y = room.py + d.y * TILE; this.w = d.w * TILE + 12; this.h = d.h * TILE;
+    this.rx = room.px + d.x * TILE;
+    this.dead = false; this.contact = 0; this.noSoul = true; this.noRecoil = true; this.flashT = 0;
+  }
+  get cx() { return this.rx + this.d.w * TILE / 2; }
+  hurt(dmg, player, type) {
+    if (type !== 'wave') {
+      this.flashT = 0.12;
+      FX.burst(this.cx, player ? player.cy : this.y + this.h / 2, 8, { colors: ['#7ad8ff', '#ffffff', '#c8f0ff'], speed: 90, grav: 0, life: 0.25 });
+      sfx('block');
+      return false;
+    }
+    this.dead = true; Game.breakWall(this);
+    return true;
+  }
+  draw(ctx) {
+    const x = this.rx, y = this.y, w = this.d.w * TILE, h = this.d.h * TILE;
+    const flash = this.flashT > 0;
+    ctx.fillStyle = flash ? 'rgba(255,255,255,0.75)' : 'rgba(80,190,255,0.4)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#aef0ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.fillStyle = flash ? '#ffffff' : '#e8fbff';
+    for (let i = 0; i < Math.floor(h / 14); i++) {
+      ctx.fillRect(x + 2, y + 6 + i * 14, w - 4, 2);
+      ctx.fillRect(x + 3 + (i % 2) * 2, y + 10 + i * 14, 2, 6);
+    }
+    ctx.fillStyle = 'rgba(255,210,138,0.7)'; ctx.fillRect(x + w / 2 - 1, y + h / 2 - 3, 2, 6);
+    if (this.flashT > 0) this.flashT -= 1 / 60;
+  }
+}
+
+// Onda de energía del Sable Cargado (proyectil horizontal; 1 golpe; se detiene en paredes)
+class ChargeWave {
+  constructor(x, y, dir) {
+    this.w = 26; this.h = 14; this.x = x; this.y = y; this.vx = dir * 340; this.dir = dir;
+    this.t = 0; this.dead = false; this.hit = new Set(); this.contact = 0; this.harmful = false;
+  }
+  get cx() { return this.x + this.w / 2; }
+  update(dt, game) {
+    this.t += dt; this.x += this.vx * dt;
+    // Primero entidades/sellos (el sello vacía sus baldosas al romperse)
+    for (const e of game.hittables()) {
+      if (e.dead || this.hit.has(e) || !aabb(this, e)) continue;
+      this.hit.add(e);
+      const res = e.hurt(2, game.player, 'wave');
+      if (res !== false && !e.noSoul && game.player) game.player.soul = Math.min(99, game.player.soul + (game.player.soulGain || P.SOUL_HIT));
+      FX.burst(e.cx || (e.x + e.w / 2), e.cy || (e.y + e.h / 2), 12, { colors: ['#ff3a5c', '#ffffff', '#ffd28a'], speed: 180, grav: 0, life: 0.3 });
+      FX.stop(5); FX.shake(2, 0.1); sfx('hit');
+    }
+    const lx = this.dir > 0 ? this.x + this.w - 3 : this.x;
+    if (World.rectSolid(lx, this.y + 2, 4, this.h - 4) || this.t > 1.05) {
+      this.dead = true;
+      FX.burst(this.cx, this.y + this.h / 2, 14, { colors: ['#ff3a5c', '#ffffff', '#ffd28a'], speed: 130, grav: 0, life: 0.35 });
+      return;
+    }
+    if (Math.random() < 0.65) FX.burst(this.cx - this.dir * 6, this.y + this.h / 2, 1, { colors: ['#ff3a5c', '#ff8899', '#ffffff'], speed: 35, grav: 0, life: 0.28 });
+  }
+  draw(ctx) {
+    const x = Math.round(this.x), y = Math.round(this.y), f = this.dir;
+    ctx.fillStyle = 'rgba(255,58,92,0.3)'; ctx.fillRect(x - 6, y - 3, this.w + 12, this.h + 6);
+    ctx.fillStyle = '#ff3a5c'; ctx.fillRect(x, y, this.w, this.h);
+    ctx.fillStyle = '#ff8a9a'; ctx.fillRect(x + 2, y + 2, this.w - 4, this.h - 4);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(f > 0 ? x + this.w - 7 : x, y + 3, 7, this.h - 6);
+    ctx.fillStyle = '#ffd28a'; ctx.fillRect(x + 5, y + 5, this.w - 10, 3);
+  }
+}
+
 // Muro agrietado: 3 golpes lo rompen y revela un secreto
 class BreakWall {
   constructor(room, d) {
@@ -398,14 +470,15 @@ class Herald extends Enemy {
         break;
       case 'dying':
         this.vx = 0; grav = !this.onGround;
-        if (Math.random() < 0.35) {
-          FX.burst(this.x + Math.random() * this.w, this.y + Math.random() * this.h, 8, { colors: ['#ffb020', '#ffffff', '#fff4c0'], speed: 120, life: 0.4, grav: 0 });
-          FX.shake(3, 0.1);
+        if (Math.random() < 0.55) {
+          FX.burst(this.x + Math.random() * this.w, this.y + Math.random() * this.h, 14, { colors: ['#ffb020', '#ffffff', '#fff4c0'], speed: 160, life: 0.5, grav: 0 });
+          FX.ring(this.cx, this.cy, '#ffb020', 12 + Math.random() * 16); FX.shake(4, 0.12);
         }
         if (this.st > 1.8 && !this.dead) {
           this.dead = true;
-          FX.burst(this.cx, this.cy, 60, { colors: ['#ffb020', '#ffffff', '#fff4c0', '#5ad1ff'], speed: 260, life: 0.9 });
-          FX.ring(this.cx, this.cy, '#ffffff', 60); FX.shake(8, 0.5);
+          FX.burst(this.cx, this.cy, 90, { colors: ['#ffb020', '#ffffff', '#fff4c0', '#5ad1ff'], speed: 320, life: 1.1 });
+          FX.burst(this.cx, this.cy, 40, { colors: ['#ffffff', '#fff4c0'], speed: 180, life: 0.7, grav: -40 });
+          FX.ring(this.cx, this.cy, '#ffffff', 80); FX.ring(this.cx, this.cy, '#ffb020', 50); FX.shake(12, 0.7); FX.stop(12);
           Game.victory(this);
         }
         break;

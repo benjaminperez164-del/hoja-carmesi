@@ -209,11 +209,27 @@ const PICKUPS = {
   shard: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
   shard2: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
   shard3: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard4: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard5: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
   cristal: { msg: '¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', col: '#ffb020' },
   vasija: { msg: '¡Vasija de Energía! Curar cuesta menos energía (4 curas con el orbe lleno)', col: '#7ad8ff' },
+  orbe: { msg: '¡Orbe Carmesí! Tus golpes generan aún más energía', col: '#ff5a78' },
   celeste: { msg: '', col: '#9fe6ff', ability: true },
+  cargado: { msg: '', col: '#ff3a5c', ability: true },
 };
-const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3'];
+const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3', 'shard4', 'orbe', 'shard5'];
+const ZONE_INTRO = {
+  1: { name: 'Reino Hueco', line: 'Donde la noche nunca termina' },
+  2: { name: 'Cumbres del Alba', line: 'El viento corta como el acero' },
+  3: { name: 'Templo de Cristal', line: 'La luz se quiebra en mil filos' },
+};
+const CREDITS = [
+  { title: 'HOJA CARMESÍ', lines: ['Ecos del Abismo'] },
+  { title: 'Héroe', lines: ['Kaen'] },
+  { title: 'Zonas', lines: ['Reino Hueco', 'Cumbres del Alba', 'Templo de Cristal'] },
+  { title: 'Jefes', lines: ['Guardián Hueco', 'Heraldo del Alba', 'Oráculo Prismático'] },
+  { title: 'Gracias por jugar', lines: ['Benjamin Perez'] },
+];
 const LEVEL_NAMES = { 1: 'Reino Hueco', 2: 'Cumbres del Alba', 3: 'Templo de Cristal' };
 const LEVEL_SHORT = { 1: 'Abismo', 2: 'Cumbres', 3: 'Templo' };
 // Entradas de la colección (solo lectura; usa secrets / beaten existentes)
@@ -223,7 +239,11 @@ const COLLECTION = [
   { key: 'shard2', name: 'Fragmento de máscara', where: 'Nicho Celeste · N1', col: '#ffffff' },
   { key: 'vasija', name: 'Vasija de Energía', where: 'Jardín Colgante · N2', col: '#7ad8ff' },
   { key: 'shard3', name: 'Fragmento de máscara', where: 'Relicario de Luz · N3', col: '#ffffff' },
+  { key: 'shard4', name: 'Fragmento de máscara', where: 'Galería Suspendida · N1', col: '#ffffff' },
+  { key: 'orbe', name: 'Orbe Carmesí', where: 'Mirador del Alba · N2', col: '#ff5a78' },
+  { key: 'shard5', name: 'Fragmento de máscara', where: 'Atrio de Cristal · N3', col: '#ffffff' },
   { key: 'celeste', name: 'Salto Celeste', where: 'Heraldo del Alba · N2', col: '#9fe6ff', ability: true },
+  { key: 'cargado', name: 'Sable Cargado', where: 'Oráculo Prismático · N3', col: '#ff3a5c', ability: true },
 ];
 const BOSS_META = [
   { key: 'guardian', name: 'Guardián Hueco', level: 1 },
@@ -236,9 +256,9 @@ const Game = {
   state: 'title', t: 0, player: new Player(), enemies: [], hazards: [], objs: [], boss: null,
   cam: { x: 0, y: 0 }, room: null, banner: null, toasts: [], fade: 0, fadeDir: 0,
   respawn: { room: 'santuario', tx: 14, ty: 15 }, beaten: {}, secrets: new Set(), killed: new Set(),
-  dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0, clearLevel: 1, phaseSet: 'a', abilityT: 0,
+  dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0, clearLevel: 1, phaseSet: 'a', abilityT: 0, abilityKey: null,
   flashHud: 0, deadT: 0, victoryT: 0, playTime: 0, timeScale: 1, slowT: 0, titleT: 0,
-  mapZone: 0, pauseSel: 0,
+  mapZone: 0, pauseSel: 0, zoneCard: null, creditsT: 0, creditsPage: 0,
 
   hittables() {
     const l = this.enemies.filter(e => !e.dead);
@@ -251,9 +271,11 @@ const Game = {
   applyUpgrades() {
     const p = this.player;
     p.soulGain = this.secrets.has('cristal') ? 17 : P.SOUL_HIT;
+    if (this.secrets.has('orbe')) p.soulGain += 5;
     p.healTime = this.secrets.has('cristal') ? 0.62 : P.HEAL_T;
     p.healCost = this.secrets.has('vasija') ? 24 : P.HEAL_COST;
     p.hasDouble = this.secrets.has('celeste');
+    p.hasCharge = this.secrets.has('cargado');
   },
   saveGame() {
     const ok = Save.write({
@@ -268,8 +290,9 @@ const Game = {
     this.player = new Player();
     this.player.maxHp = d.maxHp || 5;
     this.beaten = Object.assign({}, d.beaten || {}); this.secrets = new Set(d.secrets || []);
-    // Migración de partidas antiguas: quien ya venció al Heraldo recibe el Salto Celeste
+    // Migración: Heraldo → Salto Celeste; Oráculo → Sable Cargado
     if (this.beaten.heraldo && !this.secrets.has('celeste')) this.secrets.add('celeste');
+    if (this.beaten.oraculo && !this.secrets.has('cargado')) this.secrets.add('cargado');
     if (d.completed && !this.beaten.oraculo) delete d.completed;
     this.killed = new Set(); this.playTime = d.playTime || 0;
     World.rooms.forEach(r => { r.visited = (d.visited || []).includes(r.id); });
@@ -279,7 +302,10 @@ const Game = {
     this.spawnAtRespawn();
     this.state = 'play';
     this.toast('Partida cargada: ' + World.byId[this.respawn.room].name, 3);
-    if (this.secrets.has('celeste') && !(d.secrets || []).includes('celeste')) { this.toast('Has obtenido el Salto Celeste: salta de nuevo en el aire', 4); this.saveGame(); }
+    let migrated = false;
+    if (this.secrets.has('celeste') && !(d.secrets || []).includes('celeste')) { this.toast('Has obtenido el Salto Celeste: salta de nuevo en el aire', 4); migrated = true; }
+    if (this.secrets.has('cargado') && !(d.secrets || []).includes('cargado')) { this.toast('Has obtenido el Sable Cargado: mantén ATACAR y suelta', 4); migrated = true; }
+    if (migrated) this.saveGame();
   },
   // Aplica/revierte muros secretos rotos en la rejilla de las salas
   restoreWalls() {
@@ -293,9 +319,10 @@ const Game = {
   breakWall(w) {
     this.secrets.add(w.id);
     this.restoreWalls();
-    FX.burst(w.x + w.w / 2, w.y + w.h / 2, 30, { colors: ['#a57c55', '#e6c48a', '#241610'], speed: 160, life: 0.7 });
+    const charge = w.d && w.d.charge;
+    FX.burst(w.x + w.w / 2, w.y + w.h / 2, charge ? 40 : 30, { colors: charge ? ['#7ad8ff', '#ffffff', '#ff3a5c'] : ['#a57c55', '#e6c48a', '#241610'], speed: 160, life: 0.7 });
     FX.shake(5, 0.3); FX.stop(6); sfx('crumble');
-    this.toast('¡Un pasaje oculto!', 2.5);
+    this.toast(charge ? '¡El sello de cristal se hace trizas!' : '¡Un pasaje oculto!', 2.5);
   },
   openTitle() {
     this.state = 'title'; this.titleT = 0; FX.clear();
@@ -442,7 +469,7 @@ const Game = {
     this.setPhase('a', room);
     this.dyn.forEach(d => d.update && d.kind === 'mover' && d.update(0, 0));
     this.winds = room.winds.map(d => new Wind(room, d));
-    this.props = room.walls.filter(w => !this.secrets.has(w.id)).map(w => new BreakWall(room, w));
+    this.props = room.walls.filter(w => !this.secrets.has(w.id)).map(w => w.charge ? new ChargeSeal(room, w) : new BreakWall(room, w));
     for (const d of room.beams) this.hazards.push(new Beam(room, d));
     // Salvaguarda: en el Nivel 3 siempre se tiene el Salto Celeste si el Heraldo fue vencido
     if (room.level === 3 && this.beaten.heraldo && !this.secrets.has('celeste')) { this.secrets.add('celeste'); this.applyUpgrades(); this.toast('Salto Celeste: pulsa SALTAR otra vez en el aire', 4); }
@@ -462,10 +489,13 @@ const Game = {
       else if (o.type === 'switch') this.props.push(new CrystalSwitch(x, y));
       else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = o.boss === 'heraldo' ? new Herald(x, y, room) : o.boss === 'oraculo' ? new Oracle(x, y, room) : new Boss(x, y, room);
       else if (o.type === 'celeste') { if (this.beaten.heraldo && !this.secrets.has('celeste')) this.objs.push(this.makePickup(o.type, x, y)); }
+      else if (o.type === 'cargado') { if (this.beaten.oraculo && !this.secrets.has('cargado')) this.objs.push(this.makePickup(o.type, x, y)); }
       else if (PICKUPS[o.type] && !this.secrets.has(o.type)) this.objs.push(this.makePickup(o.type, x, y));
       else if (o.type === 'bench') this.objs.push({ type: 'bench', x: x - 12, y: y - 10, w: 24, h: 10, tx: o.tx, ty: o.ty });
       else if (o.type === 'sign') this.objs.push({ type: 'sign', x: x - 4, y: y - 14, w: 8, h: 14, text: o.text });
     });
+    const firstOfLevel = !World.rooms.some(r => r.level === room.level && r.visited);
+    if (firstOfLevel && ZONE_INTRO[room.level]) this.zoneCard = { level: room.level, t: 0 };
     if (!room.visited || snap) this.banner = { text: room.name, t: 0 };
     room.visited = true;
     if (snap) this.snapCam();
@@ -520,20 +550,29 @@ const Game = {
     this.player.invulnT = 0;
     this.syncDoors();
     const key = b && b.key;
-    if (key === 'oraculo') { this.state = 'victory'; this.victoryT = 0; Save.write(Object.assign(Save.load() || {}, { v: 1, completed: true })); }
-    else {
+    if (key === 'oraculo') {
+      this.state = 'levelclear'; this.clearT = 0; this.clearLevel = 3;
+      if (!this.secrets.has('cargado')) {
+        const o = this.room.objs.find(o => o.type === 'cargado');
+        const x = o ? this.room.px + o.tx * TILE : (b.cx || this.player.cx);
+        const y = o ? this.room.py + o.ty * TILE : (b.cy || this.player.cy);
+        this.objs.push(this.makePickup('cargado', x, y));
+      }
+      const cur = Save.load() || { v: 1 };
+      Save.write(Object.assign(cur, { v: 1, completed: true, beaten: Object.assign({}, cur.beaten || {}, this.beaten), secrets: [...this.secrets], playTime: this.playTime }));
+    } else {
       this.state = 'levelclear'; this.clearT = 0; this.clearLevel = key === 'heraldo' ? 2 : 1;
-      // la pluma del Heraldo cae en la arena
       if (key === 'heraldo' && !this.secrets.has('celeste')) {
         const o = this.room.objs.find(o => o.type === 'celeste');
         if (o) this.objs.push(this.makePickup('celeste', this.room.px + o.tx * TILE, this.room.py + o.ty * TILE));
       }
     }
   },
+  startCredits() { this.state = 'credits'; this.creditsT = 0; this.creditsPage = 0; FX.clear(); },
   musicName() {
     const s = this.state;
     if (s === 'title') return 'title';
-    if (s === 'victory') return 'victory';
+    if (s === 'victory' || s === 'credits') return 'victory';
     if (s === 'levelclear' || s === 'ability') return 'clear';
     const b = this.boss;
     if (b && b.state !== 'dormant' && b.state !== 'dying' && !b.dead) return 'boss' + this.level;
@@ -570,14 +609,31 @@ const Game = {
     if (this.state === 'levelclear') {
       this.clearT += dt; FX.update(dt);
       if ((this.clearT > 1.5 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.clearT > 6) {
-        this.state = 'play';
-        this.toast(this.clearLevel === 2 ? 'Recoge la pluma del Heraldo. Al este: Templo de Cristal' : 'Se ha abierto un camino al este: Cumbres del Alba', 4);
+        if (this.clearLevel === 3) {
+          if (this.secrets.has('cargado')) this.startCredits();
+          else { this.state = 'play'; this.toast('Recoge el Sable Cargado en la arena', 4); }
+        } else {
+          this.state = 'play';
+          this.toast(this.clearLevel === 2 ? 'Recoge la pluma del Heraldo. Al este: Templo de Cristal' : 'Se ha abierto un camino al este: Cumbres del Alba', 4);
+        }
       }
       return;
     }
     if (this.state === 'ability') {
       this.abilityT += dt; FX.update(dt);
-      if ((this.abilityT > 1.2 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.abilityT > 8) { this.state = 'play'; this.player.jumpBuf = 0; }
+      if ((this.abilityT > 1.2 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.abilityT > 8) {
+        this.player.jumpBuf = 0;
+        if (this.abilityKey === 'cargado') this.startCredits();
+        else this.state = 'play';
+      }
+      return;
+    }
+    if (this.state === 'credits') {
+      this.creditsT += dt; FX.update(dt);
+      if (this.creditsT > 1.0 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) {
+        if (this.creditsPage < CREDITS.length - 1) { this.creditsPage++; this.creditsT = 0.35; sfx('move'); }
+        else this.openTitle();
+      }
       return;
     }
     if (this.state === 'pause') {
@@ -616,6 +672,7 @@ const Game = {
     if (this.state === 'play' && (Input.pressed('pause') || Input.pressed('start'))) { this.state = 'pause'; this.pauseSel = 0; return; }
     if (this.flashHud > 0) this.flashHud -= dt;
     if (this.banner) { this.banner.t += dt; if (this.banner.t > 2.6) this.banner = null; }
+    if (this.zoneCard) { this.zoneCard.t += dt; if (this.zoneCard.t > 3.2) this.zoneCard = null; }
     for (const t of this.toasts) t.t += dt;
     this.toasts = this.toasts.filter(t => t.t < t.life);
 
@@ -657,10 +714,10 @@ const Game = {
         o.taken = true; this.secrets.add(o.type);
         if (pk.hp) { p.maxHp++; p.hp = p.maxHp; }
         this.applyUpgrades();
-        if (o.type === 'cristal' || o.type === 'vasija') p.soul = 99;
+        if (o.type === 'cristal' || o.type === 'vasija' || o.type === 'orbe') p.soul = 99;
         FX.ring(o.x + 5, o.y + 6, pk.col, 44); FX.burst(o.x + 5, o.y + 6, 30, { colors: [pk.col, '#ffffff'], speed: 150, grav: 0 }); FX.stop(10);
         sfx('pickup'); this.flashHud = 0.6;
-        if (pk.ability) { this.state = 'ability'; this.abilityT = 0; this.saveGame(); }
+        if (pk.ability) { this.state = 'ability'; this.abilityT = 0; this.abilityKey = o.type; this.saveGame(); }
         else this.toast(pk.msg, 4);
       }
     }
@@ -670,6 +727,7 @@ const Game = {
     if (this.boss) this.boss.update(dt, this);
     for (const h of this.hazards) h.update(dt, this);
     this.hazards = this.hazards.filter(h => !h.dead);
+    this.props = this.props.filter(w => !w.dead);
     for (const e of this.enemies) if (e.dead && e.kid) this.killed.add(e.kid);
     this.enemies = this.enemies.filter(e => !e.dead);
 
@@ -722,6 +780,8 @@ const Game = {
       if (this.state === 'victory') this.drawVictory(sctx);
       if (this.state === 'levelclear') this.drawLevelClear(sctx);
       if (this.state === 'ability') this.drawAbility(sctx);
+      if (this.state === 'credits') this.drawCredits(sctx);
+      if (this.zoneCard && (this.state === 'play' || this.state === 'dying')) this.drawZoneCard(sctx);
     }
     sctx.restore();
   },
@@ -916,7 +976,7 @@ const Game = {
     for (const w of this.winds) w.draw(ctx, this.t);
     if (r.phases.length) this.drawPhases(r);
     for (const d of this.dyn) d.draw(ctx);
-    for (const w of this.props) w.draw(ctx);
+    for (const w of this.props) if (!w.dead) w.draw(ctx);
     // puertas: bloqueo del jefe (rojo) / salida sellada (piedra con sello dorado)
     for (const d of r.doors) if (d.active) {
       const x = r.px + d.x * TILE, y = r.py + d.y * TILE;
@@ -988,7 +1048,20 @@ const Game = {
       ctx.fillStyle = '#d8f8ff'; ctx.fillRect(-3, -9, 6, 18); ctx.fillStyle = '#9fe6ff'; ctx.fillRect(0, -9, 3, 18);
       ctx.fillStyle = '#ffd24a'; ctx.fillRect(-1, -9, 1, 20);
       ctx.restore();
-    } else if (o.type === 'shard' || o.type === 'shard2' || o.type === 'shard3') {
+    } else if (o.type === 'cargado') {
+      const b = Math.round(Math.sin(this.t * 3) * 2);
+      ctx.fillStyle = 'rgba(255,58,92,0.45)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#16203a'; ctx.fillRect(x - 2, y + b, 14, 4);
+      ctx.fillStyle = '#ff3a5c'; ctx.fillRect(x - 1, y + 1 + b, 12, 2);
+      ctx.fillStyle = '#ffd28a'; ctx.fillRect(x + 8, y - 2 + b, 4, 8);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 9, y - 1 + b, 2, 4);
+    } else if (o.type === 'orbe') {
+      const b = Math.round(Math.sin(this.t * 3) * 2);
+      ctx.fillStyle = 'rgba(255,90,120,0.4)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a0010'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff5a78'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 3, y + 3 + b, 2, 2);
+    } else if (o.type === 'shard' || o.type === 'shard2' || o.type === 'shard3' || o.type === 'shard4' || o.type === 'shard5') {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       if (this.room.theme !== 'night') { ctx.fillStyle = 'rgba(22,32,58,0.5)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 10, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = 'rgba(191,246,255,0.3)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 9, 0, Math.PI * 2); ctx.fill();
@@ -1127,6 +1200,7 @@ const Game = {
       ['DASH', 'Dash (en suelo y 1 en el aire)'],
       ['SALTAR en pared', 'Salto de pared (con DASH: más lejos)'],
       ['SALTAR en el aire', 'Salto Celeste (se obtiene en el Nivel 2)'],
+      ['Mantén ATACAR y suelta', 'Sable Cargado: onda de energía (Nivel 3)'],
       ['CURAR (mantener)', 'Curar 1 máscara (gasta energía)'],
       ['↑ en un banco', 'Sentarse · ↓+SALTAR: bajar plataforma'],
       ['❚❚', 'Pausa'],
@@ -1140,6 +1214,7 @@ const Game = {
       ['C / L', 'Dash (en suelo y 1 en el aire)'],
       ['Saltar en pared', 'Salto de pared (con Dash: más lejos)'],
       ['Saltar en el aire', 'Salto Celeste (se obtiene en el Nivel 2)'],
+      ['Mantén Ataque y suelta', 'Sable Cargado: onda de energía (Nivel 3)'],
       ['V / Shift (mantener)', 'Curar 1 máscara (gasta energía)'],
       ['↑ / W en un banco', 'Sentarse: guardar y curar'],
       ['Enter / Esc · M', 'Pausa · Sonido sí/no'],
@@ -1379,21 +1454,21 @@ const Game = {
     // lista de secretos (columna izq)
     g.textAlign = 'left';
     COLLECTION.forEach((c, i) => {
-      const y = 50 + i * 22, has = this.secrets.has(c.key);
-      g.fillStyle = 'rgba(8,6,16,0.65)'; g.fillRect(20, y - 8, 250, 20);
-      g.strokeStyle = has ? c.col : 'rgba(120,120,150,0.35)'; g.lineWidth = 0.8; g.strokeRect(20, y - 8, 250, 20);
-      // icono
+      const col = i < 5 ? 0 : 1, row = i % 5;
+      const x = 16 + col * 134, y = 48 + row * 36, has = this.secrets.has(c.key);
+      g.fillStyle = 'rgba(8,6,16,0.65)'; g.fillRect(x, y - 8, 128, 32);
+      g.strokeStyle = has ? c.col : 'rgba(120,120,150,0.35)'; g.lineWidth = 0.8; g.strokeRect(x, y - 8, 128, 32);
       g.fillStyle = has ? c.col : 'rgba(80,80,100,0.8)';
       if (c.ability) {
-        g.beginPath(); g.moveTo(32, y - 4); g.lineTo(38, y); g.lineTo(32, y + 4); g.lineTo(26, y); g.fill();
+        g.beginPath(); g.moveTo(x + 12, y - 2); g.lineTo(x + 18, y + 4); g.lineTo(x + 12, y + 10); g.lineTo(x + 6, y + 4); g.fill();
       } else {
-        g.beginPath(); g.arc(32, y, 5, 0, Math.PI * 2); g.fill();
-        if (has) { g.fillStyle = '#ffffff'; g.fillRect(30, y - 2, 2, 2); }
+        g.beginPath(); g.arc(x + 12, y + 4, 5, 0, Math.PI * 2); g.fill();
+        if (has) { g.fillStyle = '#ffffff'; g.fillRect(x + 10, y + 2, 2, 2); }
       }
-      g.font = 'bold 8px sans-serif'; g.fillStyle = has ? '#eef0fa' : '#6d6488';
-      g.fillText(has ? c.name : '???', 44, y - 1);
-      g.font = '6px sans-serif'; g.fillStyle = has ? '#a898c8' : '#4a4460';
-      g.fillText(has ? c.where : 'Aún no descubierto', 44, y + 7);
+      g.font = 'bold 7px sans-serif'; g.fillStyle = has ? '#eef0fa' : '#6d6488';
+      g.fillText(has ? c.name : '???', x + 24, y);
+      g.font = '5.5px sans-serif'; g.fillStyle = has ? '#a898c8' : '#4a4460';
+      g.fillText(has ? c.where : 'Aún no descubierto', x + 24, y + 10);
     });
     // jefes (columna der)
     g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffb0c0'; g.textAlign = 'left';
@@ -1426,15 +1501,23 @@ const Game = {
   },
   drawAbility(g) {
     const a = Math.min(1, this.abilityT / 0.6);
-    g.fillStyle = `rgba(8,14,34,${0.72 * a})`; g.fillRect(0, 0, VW, VH);
+    const cargado = this.abilityKey === 'cargado';
+    g.fillStyle = cargado ? `rgba(34,8,14,${0.72 * a})` : `rgba(8,14,34,${0.72 * a})`; g.fillRect(0, 0, VW, VH);
     g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = 'italic 10px Georgia, serif'; g.fillStyle = '#aee0ff'; g.fillText('Nueva habilidad', VW / 2, 74);
-    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#16203a'; g.fillText('SALTO CELESTE', VW / 2 + 2, 100);
-    g.fillStyle = '#e8fbff'; g.fillText('SALTO CELESTE', VW / 2, 98);
-    g.font = '13px Georgia, serif'; g.fillStyle = '#ffd24a'; g.fillText('Salta de nuevo en el aire', VW / 2, 128);
+    g.font = 'italic 10px Georgia, serif'; g.fillStyle = cargado ? '#ff8a9a' : '#aee0ff'; g.fillText('Nueva habilidad', VW / 2, 74);
+    const title = cargado ? 'SABLE CARGADO' : 'SALTO CELESTE';
+    g.font = 'bold 26px Georgia, serif'; g.fillStyle = '#16203a'; g.fillText(title, VW / 2 + 2, 100);
+    g.fillStyle = cargado ? '#ffe0e8' : '#e8fbff'; g.fillText(title, VW / 2, 98);
+    g.font = '13px Georgia, serif'; g.fillStyle = '#ffd24a';
+    g.fillText(cargado ? 'Mantén ATACAR y suelta' : 'Salta de nuevo en el aire', VW / 2, 128);
     g.font = '8px sans-serif'; g.fillStyle = '#e8ecff';
-    g.fillText(IS_TOUCH() ? 'Pulsa SALTAR otra vez mientras estás en el aire.' : 'Pulsa Saltar (Z / J / Espacio) otra vez mientras estás en el aire.', VW / 2, 152);
-    g.fillText('Se recarga al tocar el suelo, agarrarte a una pared o rebotar con el tajo abajo.', VW / 2, 165);
+    if (cargado) {
+      g.fillText(IS_TOUCH() ? 'Mantén ATACAR ~0.7 s (el sable brilla) y suelta para disparar una onda.' : 'Mantén Ataque (X / K) ~0.7 s y suelta: una onda de energía atraviesa enemigos.', VW / 2, 152);
+      g.fillText('La onda daña una vez y se detiene en las paredes. Los sellos de cristal solo ceden ante ella.', VW / 2, 165);
+    } else {
+      g.fillText(IS_TOUCH() ? 'Pulsa SALTAR otra vez mientras estás en el aire.' : 'Pulsa Saltar (Z / J / Espacio) otra vez mientras estás en el aire.', VW / 2, 152);
+      g.fillText('Se recarga al tocar el suelo, agarrarte a una pared o rebotar con el tajo abajo.', VW / 2, 165);
+    }
     if (this.abilityT > 1.2 && Math.floor(this.abilityT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 200);
     }
@@ -1449,11 +1532,51 @@ const Game = {
     g.fillStyle = '#ffe0a0'; g.fillText(title, VW / 2 + 1, 97);
     g.fillStyle = '#ffd28a'; g.fillText(title, VW / 2, 96);
     g.font = '12px Georgia, serif'; g.fillStyle = '#e8ecff';
-    g.fillText(L === 2 ? 'El Heraldo del Alba ha caído. Una pluma celeste brilla en la arena…' : 'El Guardián Hueco ha caído. Un sello se rompe al este…', VW / 2, 128);
+    const msgs = {
+      1: 'El Guardián Hueco ha caído. Un sello se rompe al este…',
+      2: 'El Heraldo del Alba ha caído. Una pluma celeste brilla en la arena…',
+      3: 'El Oráculo Prismático se apaga. Un sable de energía late en la arena…',
+    };
+    g.fillText(msgs[L] || msgs[1], VW / 2, 128);
     g.font = 'italic 11px Georgia, serif'; g.fillStyle = '#aee0ff';
-    g.fillText('Siguiente: Nivel ' + (L + 1) + ' — ' + LEVEL_NAMES[L + 1], VW / 2, 148);
+    if (L < 3) g.fillText('Siguiente: Nivel ' + (L + 1) + ' — ' + LEVEL_NAMES[L + 1], VW / 2, 148);
+    else g.fillText('El templo vuelve a la luz.', VW / 2, 148);
     if (this.clearT > 1.5 && Math.floor(this.clearT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 190);
+    }
+    g.globalAlpha = 1;
+  },
+  drawZoneCard(g) {
+    const z = this.zoneCard, info = ZONE_INTRO[z.level]; if (!info) return;
+    const t = z.t;
+    let a = 1;
+    if (t < 0.45) a = t / 0.45;
+    else if (t > 2.4) a = Math.max(0, 1 - (t - 2.4) / 0.8);
+    g.globalAlpha = a;
+    g.fillStyle = 'rgba(5,4,10,0.55)'; g.fillRect(0, VH / 2 - 36, VW, 72);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'italic 9px Georgia, serif'; g.fillStyle = '#a898c8';
+    g.fillText('Nivel ' + z.level, VW / 2, VH / 2 - 18);
+    g.font = 'bold 22px Georgia, serif'; g.fillStyle = '#1a0008'; g.fillText(info.name, VW / 2 + 1, VH / 2 + 2);
+    g.fillStyle = '#ffd28a'; g.fillText(info.name, VW / 2, VH / 2);
+    g.font = '11px Georgia, serif'; g.fillStyle = '#e8ecff'; g.fillText(info.line, VW / 2, VH / 2 + 22);
+    g.globalAlpha = 1;
+  },
+  drawCredits(g) {
+    const a = Math.min(1, this.creditsT / 0.5);
+    const page = CREDITS[this.creditsPage] || CREDITS[CREDITS.length - 1];
+    g.fillStyle = `rgba(5,4,10,${0.88 * a})`; g.fillRect(0, 0, VW, VH);
+    g.globalAlpha = a; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'italic 9px Georgia, serif'; g.fillStyle = '#a898c8';
+    g.fillText((this.creditsPage + 1) + ' / ' + CREDITS.length, VW / 2, 40);
+    g.font = 'bold 24px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText(page.title, VW / 2 + 1, 100);
+    g.fillStyle = '#ffd28a'; g.fillText(page.title, VW / 2, 98);
+    g.font = '14px Georgia, serif'; g.fillStyle = '#e8ecff';
+    page.lines.forEach((line, i) => g.fillText(line, VW / 2, 130 + i * 22));
+    if (this.creditsT > 1.0 && Math.floor(this.creditsT * 2) % 2 === 0) {
+      g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff';
+      const last = this.creditsPage >= CREDITS.length - 1;
+      g.fillText(IS_TOUCH() ? (last ? 'Toca para volver al título' : 'Toca para continuar') : (last ? 'ENTER · título' : 'ENTER · siguiente'), VW / 2, 230);
     }
     g.globalAlpha = 1;
   },
@@ -1495,7 +1618,7 @@ function frame(now) {
   while (acc >= STEP && n < 5) { if (!(window.GAME && window.GAME.manual)) Game.update(STEP); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   Game.draw();
-  Sound.music(Game.musicName()); Sound.duck = (Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls') ? 0.35 : 1; Sound.update();
+  Sound.music(Game.musicName()); Sound.duck = (Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls' || Game.state === 'credits') ? 0.35 : 1; Sound.update();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

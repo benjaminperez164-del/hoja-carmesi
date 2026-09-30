@@ -19,6 +19,7 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 | C / L | Dash (en suelo, y 1 en el aire) |
 | Saltar tocando pared | Salto de pared (con Dash pulsado: salto largo) |
 | Saltar en el aire | **Salto Celeste** (doble salto, tras vencer al Heraldo del Alba) |
+| Mantén Ataque y suelta | **Sable Cargado** (onda de energía, tras vencer al Oráculo Prismático) |
 | ↓ + Saltar sobre plataforma fina | Bajar de la plataforma |
 | V / Shift (mantener) | Curar 1 máscara (gasta 1/3 de energía) |
 | ↑ / W en un banco | Sentarse: guardar partida, curar y revivir enemigos |
@@ -30,8 +31,9 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 - Los controles táctiles aparecen solo en dispositivos táctiles: joystick flotante a la izquierda
   (toca en cualquier punto del 45 % izquierdo), botones SALTAR / ATACAR / DASH / CURAR (mantener) a la derecha
   ❚❚ (pausa) arriba y ♪ (altavoz: silenciar/activar sonido). Multitáctil: puedes mantener dirección + saltar + dash a la vez; se puede deslizar el pulgar entre botones.
-- Título: toca «Continuar» o «Nueva partida». Pausa, «Nivel completado», nueva habilidad y victoria: toca la pantalla para continuar.
+- Título: toca «Continuar» o «Nueva partida». Pausa, «Nivel completado», nueva habilidad, créditos y victoria: toca la pantalla para continuar.
 - Pulsa SALTAR otra vez en el aire para el Salto Celeste (cuando lo tengas).
+- Mantén ATACAR ~0.7 s y suelta para el Sable Cargado (cuando lo tengas): dispara una onda horizontal.
 - Juega en horizontal (en vertical aparece «Gira tu teléfono» y el juego se pausa).
 - Al primer toque intenta pantalla completa y bloqueo horizontal (Android/Chrome). En iPhone (Safari) no hay API de
   pantalla completa: usa «Compartir → Añadir a pantalla de inicio» para jugar sin barras del navegador.
@@ -66,6 +68,7 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 - Se guarda en `localStorage` (clave `hojaCarmesi.save.v1`) al sentarse en un banco: nivel, banco, máscaras máximas,
   secretos, jefes derrotados, salas visitadas y tiempo (incluye Nivel 3 y el Salto Celeste).
 - Partidas antiguas: si ya habías vencido al Heraldo del Alba, al pulsar «Continuar» recibes el Salto Celeste automáticamente.
+- Si ya habías vencido al Oráculo Prismático, recibes el Sable Cargado automáticamente.
 - En el título aparece «Continuar» si hay partida guardada, y «Nueva partida» (pide confirmación si ya hay una guardada).
   Se elige con ↑↓/←→ + Enter/Z, o tocando.
 
@@ -76,6 +79,7 @@ Galería Suspendida (foso de pinchos: requiere rebote; banco) → Cámara del Gu
 Secreto: Cripta Olvidada (bajo el Santuario) con un Fragmento de máscara (+1 salud máxima).
 Secreto nuevo (requiere Salto Celeste): hueco en el techo del Pasaje de Espinas, sobre la plataforma alta de la derecha →
 **Nicho Celeste** con otro Fragmento de máscara.
+Secreto (requiere **Sable Cargado**): alcoba sellada en la Galería Suspendida (repisa de entrada) → Fragmento de máscara.
 Al vencer al Guardián Hueco aparece «NIVEL 1 COMPLETADO» y se abre la salida este de su cámara.
 
 ### Nivel 2 · Cumbres del Alba (diurno, ruinas en acantilados)
@@ -120,3 +124,13 @@ La entrada está al nivel de la arena y los ataques cubren toda la sala.
 - `js/input.js` teclado + mando · `js/world.js` salas y colisiones · `js/fx.js` partículas, sacudida, hit-stop
 - `js/touch.js` + `css/touch.css` controles táctiles, aviso de orientación · `manifest.webmanifest` + `icons/` app instalable
 - `js/player.js` personaje · `js/enemies.js` enemigos · `js/boss.js` jefe nivel 1 · `js/level2.js` plataformas, viento, enemigos y jefe del nivel 2 · `js/level3.js` haces, plataformas intermitentes, cristales de fase, enemigos y jefe del nivel 3 · `js/audio.js` sonido y música (Web Audio) · `js/main.js` bucle, cámara, HUD, pantallas
+
+
+## Sable Cargado y sellos
+- Al vencer al **Oráculo Prismático** cae el **Sable Cargado**. Mantén ATACAR ~0.7 s (el sable carga) y suelta para disparar una onda horizontal que daña enemigos/jefes una vez y se detiene en paredes.
+- Tres **sellos de cristal** (uno por nivel) solo se rompen con esa onda:
+  - N1 Galería Suspendida → Fragmento de máscara
+  - N2 Mirador del Alba (alcoba izquierda) → Orbe Carmesí (más energía por golpe)
+  - N3 Atrio de Cristal → Fragmento de máscara
+- Tras la victoria final: pantallas de **créditos** (toca/ENTER para avanzar) y vuelta al título.
+- Al entrar por primera vez en cada nivel aparece una **tarjeta de zona** (nombre + frase) que se desvanece.

@@ -34,6 +34,8 @@ function makeRoom(def) {
       for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) r.phaseKeys.add(i + ',' + j);
     },
     breakwall: (x, y, w, h, id) => { set(x, y, w, h, T_SOLID); r.walls.push({ x, y, w, h, id }); },
+    // Sello de cristal: solo se rompe con el onda del Sable Cargado
+    chargeseal: (x, y, w, h, id) => { set(x, y, w, h, T_SOLID); r.walls.push({ x, y, w, h, id, charge: true }); },
     box() { set(0, 0, r.w, 1, T_SOLID); set(0, 0, 1, r.h, T_SOLID); set(r.w - 1, 0, 1, r.h, T_SOLID); },
   };
   r.build(api);
@@ -95,6 +97,9 @@ const ROOM_DEFS = [
     build(b) {
       b.box(); b.clear(0, 3, 1, 4); b.clear(39, 8, 1, 4);
       b.rect(0, 7, 8, 10);             // repisa de entrada
+      // Cámara del Rayo: alcoba sellada a la altura del pecho (solo Sable Cargado)
+      b.rect(1, 2, 5, 1); b.rect(1, 6, 5, 1); b.rect(1, 3, 1, 4);
+      b.chargeseal(6, 3, 1, 4, 'selloRayo'); b.obj('shard4', 3.5, 6);
       b.rect(8, 16, 26, 1); b.spikes(8, 15, 26);   // foso de pinchos: requiere rebote (pogo)
       b.rect(34, 12, 6, 5);
       b.obj('bench', 36.5, 12);
@@ -122,6 +127,9 @@ const ROOM_DEFS = [
     build(b) {
       b.rect(0, 15, 30, 2); b.rect(0, 0, 1, 11);
       b.rect(20, 9, 10, 8); b.rect(29, 0, 1, 5);          // acantilado y salida (filas 5-8)
+      // Cámara del Alba: alcoba elevada (solo Sable Cargado; corredor de entrada y mover libres)
+      b.rect(10, 4, 4, 1); b.rect(10, 8, 4, 1); b.rect(13, 5, 1, 3);
+      b.chargeseal(10, 5, 1, 3, 'selloAlba'); b.plat(7, 9, 3); b.obj('orbe', 11.5, 8);
       b.mover(16, 13, 3, 16, 9, 3.6);                       // plataforma vertical
       b.fall(3, 0, 3, 15);
       b.obj('bench', 7, 15);
@@ -207,6 +215,9 @@ const ROOM_DEFS = [
       b.rect(13, 15, 7, 2); b.spikes(13, 14, 7);            // púas de cristal
       b.blink(15, 10, 3, 3.0, 0);
       b.rect(20, 12, 10, 5); b.rect(29, 2, 1, 6);
+      // Relicario Carmesí: alcoba alta en la pared derecha (solo Sable Cargado; suelo y entrada libres)
+      b.rect(27, 3, 2, 1); b.rect(27, 7, 2, 1);
+      b.chargeseal(27, 4, 1, 3, 'selloPrisma'); b.plat(24, 7, 2); b.obj('shard5', 28.2, 7);
       b.obj('bench', 5, 12);
       b.obj('sign', 9, 12, { text: 'Salto Celeste: pulsa SALTAR otra vez en el aire' });
       b.obj('walker', 25, 12);
@@ -284,6 +295,7 @@ const ROOM_DEFS = [
       b.door(0, 8, 1, 4);
       b.plat(8, 8, 4); b.plat(20, 8, 4);
       b.obj('boss', 16, 12, { boss: 'oraculo' });
+      b.obj('cargado', 16, 12);
     } },
 ];
 

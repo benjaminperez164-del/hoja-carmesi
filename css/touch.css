@@ -11,6 +11,7 @@ body.touch #touch-ui { display: block; }
 /* En título / victoria solo se ve la pantalla (tocar = continuar) */
 body.touch[data-state="title"] #touch-ui > *,
 body.touch[data-state="victory"] #touch-ui > *,
+body.touch[data-state="credits"] #touch-ui > *,
 body.touch[data-state="levelclear"] #touch-ui > *,
 body.touch[data-state="ability"] #touch-ui > *,
 body.touch[data-state="pause"] #touch-ui > *,

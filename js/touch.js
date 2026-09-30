@@ -52,7 +52,7 @@ const Touch = (() => {
     b.classList.remove('on'); Input.setVirtual(b.dataset.action, false);
   }
 
-  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls' || Game.state === 'levelclear' || Game.state === 'ability';
+  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'credits' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls' || Game.state === 'levelclear' || Game.state === 'ability';
   const soundBtn = document.getElementById('btn-sound');
   function onSoundBtn(x, y) { if (!soundBtn) return false; const r = soundBtn.getBoundingClientRect(); return r.width > 0 && Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) < r.width / 2 + 8; }
   const toLogical = (cx, cy) => { const d = window.devicePixelRatio || 1; return [(cx * d - offX) / scale, (cy * d - offY) / scale]; };

@@ -33,6 +33,7 @@ class Player {
     this.atk = null; this.atkCd = 0; this.recoilT = 0; this.recoilV = 0;
     this.hurtT = 0; this.invulnT = 0; this.healT = 0; this.healing = false;
     this.sitting = false; this.spikeT = 0; this.dropT = 0;
+    this.charging = false; this.chargeT = 0;
     this.safe = { x, y }; this.animT = 0; this.trail = []; this.trailTick = 0;
     this.hair = [];
     for (let i = 0; i < 7; i++) this.hair.push({ x: x + 5, y: y + 4, px: x + 5, py: y + 4 });
@@ -47,6 +48,7 @@ class Player {
     const dir = Math.sign(this.cx - srcX) || -this.facing;
     this.vx = dir * 160; this.vy = -230;
     this.atk = null; this.dashT = 0; this.healT = 0; this.healing = false; this.dashMomentum = false; this.sitting = false;
+    this.charging = false; this.chargeT = 0;
     FX.stop(9); FX.shake(5, 0.3); sfx('hurt');
     FX.burst(this.cx, this.cy, 16, { colors: ['#ff3355', '#ffffff', '#ff8899'], speed: 160, life: 0.45 });
     FX.ring(this.cx, this.cy, '#ff4466', 26);
@@ -83,9 +85,35 @@ class Player {
     for (const t of timers) if (this[t] > 0) this[t] -= dt;
 
     if (I.pressed('jump')) this.jumpBuf = P.BUFFER;
-    if (I.pressed('attack')) this.atkBuf = 0.15;
 
     const stunned = this.hurtT > 0;
+
+    // Sable Cargado: mantener ATACAR ~0.7s y soltar → onda; toque corto → tajo normal
+    if (this.hasCharge) {
+      if (I.pressed('attack')) {
+        if (this.atk) this.atkBuf = 0.15;
+        else if (!stunned && this.dashT <= 0 && !this.healing) { this.charging = true; this.chargeT = 0; }
+      }
+    } else if (I.pressed('attack')) this.atkBuf = 0.15;
+
+    if (this.charging) {
+      if (stunned || this.healing || this.dashT > 0 || I.pressed('dash')) {
+        this.charging = false; this.chargeT = 0;
+      } else if (!I.down('attack')) {
+        if (this.chargeT >= 0.7) this.fireWave(game);
+        else this.atkBuf = 0.15;
+        this.charging = false; this.chargeT = 0;
+      } else {
+        this.chargeT += dt;
+        if (this.chargeT > 0.12 && Math.random() < 0.55) {
+          const sx = this.cx + this.facing * 14, sy = this.cy - 2;
+          FX.burst(sx, sy, 1, { colors: this.chargeT >= 0.7 ? ['#ffffff', '#ffd28a', '#ff3a5c'] : ['#ff3a5c', '#ff8899'], speed: 40 + this.chargeT * 60, grav: -20, life: 0.35 });
+        }
+        if (this.chargeT >= 0.7 && Math.floor(this.chargeT * 20) !== Math.floor((this.chargeT - dt) * 20)) {
+          FX.ring(this.cx + this.facing * 12, this.cy, '#ffd28a', 10);
+        }
+      }
+    }
 
     // Contacto con pared
     this.wallDir = 0;
@@ -235,6 +263,14 @@ class Player {
     if ((a === T_SOLID || a === T_PLAT) && (b === T_SOLID || b === T_PLAT)) { this.safe.x = this.x; this.safe.y = this.y; }
   }
 
+  fireWave(game) {
+    const x = this.facing > 0 ? this.x + this.w : this.x - 26;
+    game.hazards.push(new ChargeWave(x, this.cy - 7, this.facing));
+    FX.burst(this.cx + this.facing * 14, this.cy, 18, { colors: ['#ff3a5c', '#ffffff', '#ffd28a'], speed: 220, grav: 0, life: 0.4 });
+    FX.ring(this.cx + this.facing * 10, this.cy, '#ff3a5c', 22); FX.shake(4, 0.18); sfx('zap');
+    this.atkCd = 0.28;
+  }
+
   startAttack(type) {
     const def = ATTACKS[type];
     this.atk = { type, def, t: 0, hit: new Set(), ground: type[0] === 'g', pogoed: false, lungeV: 0 };
@@ -331,6 +367,7 @@ class Player {
     if (this.sitting) return 'sit';
     if (this.hurtT > 0) return 'hurt';
     if (this.healing) return 'heal';
+    if (this.charging) return this.chargeT >= 0.7 ? 'g3' : 'g1';
     if (this.atk) return this.atk.type;
     if (this.dashT > 0) return this.groundDash ? 'dash' : 'airdash';
     if (this.sliding) return 'wall';
@@ -382,6 +419,16 @@ class Player {
     }
     const flash = this.hurtT > 0 && Math.floor(this.hurtT * 30) % 2 === 0 ? '#ffffff' : null;
     drawKaen(ctx, this.cx, this.y + this.h, this.facing, this.anim(), this.animT, flash);
+    if (this.charging) {
+      const k = Math.min(1, this.chargeT / 0.7), ready = this.chargeT >= 0.7;
+      const sx = this.cx + this.facing * 12, sy = this.cy - 2;
+      ctx.globalAlpha = 0.35 + k * 0.45;
+      ctx.fillStyle = ready ? '#ffd28a' : '#ff3a5c';
+      ctx.beginPath(); ctx.arc(sx, sy, 6 + k * 8 + (ready ? Math.sin(this.animT * 20) * 2 : 0), 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9; ctx.fillStyle = '#ffffff';
+      ctx.fillRect(sx - 1, sy - 6 - k * 4, 2, 4 + k * 6);
+      ctx.globalAlpha = 1;
+    }
     if (this.healing) {
       const k = this.healT / (this.healTime || P.HEAL_T);
       ctx.strokeStyle = 'rgba(191,246,255,0.35)'; ctx.lineWidth = 5;
