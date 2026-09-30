@@ -39,9 +39,10 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
   y abre `http://IP-DE-TU-PC:8765/` en el teléfono.
 
 ## Pausa · Mapa · Colección
-- En pausa: **Reanudar**, **Mapa** y **Colección** (más el botón de sonido).
+- En pausa: **Reanudar**, **Mapa**, **Colección** y **Controles** (más el botón de sonido).
 - **Mapa del mundo**: zonas visitadas, salas (niebla si no las has visto), bancos, jefes y salidas entre niveles.
   Solo lectura — no puedes viajar desde el mapa.
+- **Controles**: la misma lista de la pantalla de título (táctil o teclado).
 - **Colección**: secretos/habilidades encontrados vs `???`, contador y jefes derrotados. Usa los datos del guardado actual.
 
 ## Sonido y música

@@ -15,10 +15,12 @@ body.touch[data-state="levelclear"] #touch-ui > *,
 body.touch[data-state="ability"] #touch-ui > *,
 body.touch[data-state="pause"] #touch-ui > *,
 body.touch[data-state="map"] #touch-ui > *,
-body.touch[data-state="collection"] #touch-ui > * { display: none; }
+body.touch[data-state="collection"] #touch-ui > *,
+body.touch[data-state="controls"] #touch-ui > * { display: none; }
 body.touch[data-state="pause"] #btn-sound,
 body.touch[data-state="map"] #btn-sound,
-body.touch[data-state="collection"] #btn-sound { display: flex; }
+body.touch[data-state="collection"] #btn-sound,
+body.touch[data-state="controls"] #btn-sound { display: flex; }
 
 #stick {
   position: absolute; width: 124px; height: 124px; margin: -62px 0 0 -62px;

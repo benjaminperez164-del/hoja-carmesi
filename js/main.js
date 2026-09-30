@@ -331,7 +331,7 @@ const Game = {
     g.fillText((m ? '✕ ' : '♪ ') + 'Sonido: ' + (m ? 'No' : 'Sí') + '  (M)', b.x + b.w / 2, b.y + b.h / 2 + 0.5);
   },
   menuTap(lx, ly) {
-    if ((this.state === 'title' || this.state === 'pause' || this.state === 'map' || this.state === 'collection') && this.onSoundButton(lx, ly)) { Sound.toggle(); return true; }
+    if ((this.state === 'title' || this.state === 'pause' || this.state === 'map' || this.state === 'collection' || this.state === 'controls') && this.onSoundButton(lx, ly)) { Sound.toggle(); return true; }
     if (this.state === 'pause') {
       for (const b of this.pauseButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.pauseAction(b.id); return true; }
       return true;   // consumir el toque: no reanudar al tocar el fondo
@@ -348,21 +348,30 @@ const Game = {
       for (const b of this.collectionButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.collectionAction(b.id); return true; }
       return true;
     }
+    if (this.state === 'controls') {
+      for (const b of this.controlsButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.controlsAction(b.id); return true; }
+      return true;
+    }
     if (this.state !== 'title' || !this.menu) return false;
     for (const b of this.menuButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 6 && ly <= b.y + b.h + 6) { this.menuAction(b.id); return true; }
     if (!this.menu.confirm && this.menu.items.length === 1) { this.menuAction(this.menu.items[0]); return true; }
     return false;
   },
   pauseButtons() {
-    const labels = [['resume', 'Reanudar'], ['map', 'Mapa'], ['collection', 'Colección']];
-    const w = 140, h = 22, x = (VW - w) / 2, y0 = 78, gap = 10;
+    const labels = [['resume', 'Reanudar'], ['map', 'Mapa'], ['collection', 'Colección'], ['controls', 'Controles']];
+    const w = 140, h = 20, x = (VW - w) / 2, y0 = 68, gap = 8;
     return labels.map(([id, label], i) => ({ id, label, x, y: y0 + i * (h + gap), w, h }));
   },
   pauseAction(id) {
     if (id === 'resume') this.state = 'play';
     else if (id === 'map') { this.state = 'map'; this.mapZone = 0; }
     else if (id === 'collection') this.state = 'collection';
+    else if (id === 'controls') this.state = 'controls';
   },
+  controlsButtons() {
+    return [{ id: 'back', label: '← Volver', x: 12, y: VH - 24, w: 70, h: 16 }];
+  },
+  controlsAction(id) { if (id === 'back') this.state = 'pause'; },
   mapButtons() {
     const btns = [{ id: 'back', label: '← Volver', x: 12, y: VH - 24, w: 70, h: 16 }];
     if (this.mapZone === 0) {
@@ -595,6 +604,10 @@ const Game = {
       if (Input.pressed('pause') || Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.state = 'pause';
       return;
     }
+    if (this.state === 'controls') {
+      if (Input.pressed('pause') || Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.state = 'pause';
+      return;
+    }
     if (this.state === 'victory') {
       this.victoryT += dt; FX.update(dt);
       if (this.victoryT > 1.5 && (Input.pressed('start') || Input.pressed('jump'))) this.openTitle();
@@ -705,6 +718,7 @@ const Game = {
       if (this.state === 'pause') this.drawPause(sctx);
       if (this.state === 'map') this.drawMap(sctx);
       if (this.state === 'collection') this.drawCollection(sctx);
+      if (this.state === 'controls') this.drawControlsScreen(sctx);
       if (this.state === 'victory') this.drawVictory(sctx);
       if (this.state === 'levelclear') this.drawLevelClear(sctx);
       if (this.state === 'ability') this.drawAbility(sctx);
@@ -1399,6 +1413,17 @@ const Game = {
     for (const b of this.collectionButtons()) this.drawMapBtn(g, b, false);
     this.drawSoundButton(g);
   },
+  drawControlsScreen(g) {
+    g.fillStyle = 'rgba(5,4,10,0.88)'; g.fillRect(0, 0, VW, VH);
+    this.uiPanel(g, 50, 16, VW - 100, VH - 32, 'rgba(255,58,92,0.55)');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 16px Georgia, serif'; g.fillStyle = '#ff3a5c'; g.fillText('CONTROLES', VW / 2, 36);
+    this.drawControls(g, 230, 56, 14);
+    g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
+    g.fillText(IS_TOUCH() ? 'Toca Volver' : 'Esc / ENTER volver a pausa', VW / 2, VH - 32);
+    for (const b of this.controlsButtons()) this.drawMapBtn(g, b, false);
+    this.drawSoundButton(g);
+  },
   drawAbility(g) {
     const a = Math.min(1, this.abilityT / 0.6);
     g.fillStyle = `rgba(8,14,34,${0.72 * a})`; g.fillRect(0, 0, VW, VH);
@@ -1470,7 +1495,7 @@ function frame(now) {
   while (acc >= STEP && n < 5) { if (!(window.GAME && window.GAME.manual)) Game.update(STEP); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   Game.draw();
-  Sound.music(Game.musicName()); Sound.duck = (Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection') ? 0.35 : 1; Sound.update();
+  Sound.music(Game.musicName()); Sound.duck = (Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls') ? 0.35 : 1; Sound.update();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

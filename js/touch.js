@@ -52,7 +52,7 @@ const Touch = (() => {
     b.classList.remove('on'); Input.setVirtual(b.dataset.action, false);
   }
 
-  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'levelclear' || Game.state === 'ability';
+  const menuState = () => Game.state === 'title' || Game.state === 'victory' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls' || Game.state === 'levelclear' || Game.state === 'ability';
   const soundBtn = document.getElementById('btn-sound');
   function onSoundBtn(x, y) { if (!soundBtn) return false; const r = soundBtn.getBoundingClientRect(); return r.width > 0 && Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2)) < r.width / 2 + 8; }
   const toLogical = (cx, cy) => { const d = window.devicePixelRatio || 1; return [(cx * d - offX) / scale, (cy * d - offY) / scale]; };
@@ -65,10 +65,10 @@ const Touch = (() => {
       if (onSoundBtn(x, y) && Game.state !== 'title') { touches.set(t.identifier, { kind: 'none' }); Sound.unlock(); Sound.toggle(); continue; }
       if (menuState()) {
         touches.set(t.identifier, { kind: 'tap' });
-        if (Game.state === 'title' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection') {
+        if (Game.state === 'title' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls') {
           const [lx, ly] = toLogical(x, y);
           if (Game.menuTap(lx, ly)) continue;
-          if (Game.state !== 'title') continue;   // mapa/colección/pausa: no reanudar al tocar el fondo
+          if (Game.state !== 'title') continue;
         }
         Input.setVirtual(Game.state === 'pause' ? 'pause' : 'start', true);
         continue;
@@ -139,7 +139,7 @@ const Touch = (() => {
   document.addEventListener('touchcancel', onEnd, opts);
   document.addEventListener('contextmenu', e => e.preventDefault());
   // Clic de ratón en el menú del título (escritorio)
-  document.addEventListener('mousedown', e => { if (Game.state === 'title' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection') { const [lx, ly] = toLogical(e.clientX, e.clientY); Game.menuTap(lx, ly); } });
+  document.addEventListener('mousedown', e => { if (Game.state === 'title' || Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection' || Game.state === 'controls') { const [lx, ly] = toLogical(e.clientX, e.clientY); Game.menuTap(lx, ly); } });
   document.addEventListener('gesturestart', e => e.preventDefault());   // iOS: pellizcar para zoom
   document.addEventListener('dblclick', e => e.preventDefault());
   window.addEventListener('blur', releaseAll);
