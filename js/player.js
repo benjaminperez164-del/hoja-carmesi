@@ -292,8 +292,8 @@ class Player {
       if (res !== false && !e.noSoul) this.soul = Math.min(99, this.soul + (this.soulGain || P.SOUL_HIT));
       const hx = (Math.max(hb.x, e.x) + Math.min(hb.x + hb.w, e.x + e.w)) / 2;
       const hy = (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
-      FX.burst(hx, hy, 10, { colors: ['#ffffff', '#bff6ff', '#fff3a0'], speed: 190, life: 0.25, grav: 0, size: 2 });
-      FX.ring(hx, hy, '#ffffff', 12);
+      FX.burst(hx, hy, 8, { colors: ['#ffffff', '#bff6ff', '#fff3a0'], speed: 190, life: 0.25, grav: 0, size: 2 });
+      FX.sparks(hx, hy, 6); FX.ring(hx, hy, '#ffffff', 12);
     }
     if (hitSomething) {
       FX.stop(a.type === 'g3' ? 6 : 4); FX.shake(a.type === 'g3' ? 3 : 2, 0.12);
@@ -370,10 +370,13 @@ class Player {
     ctx.stroke();
     if (this.djT > 0) {   // alas de luz del Salto Celeste
       const k = this.djT / 0.25, wy = this.y + 8, cx = this.cx;
+      ctx.globalAlpha = k * 0.55; ctx.fillStyle = '#9fe6ff';
+      ctx.beginPath(); ctx.arc(cx, wy + 2, 10 + (1 - k) * 6, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = k;
       for (const sd of [-1, 1]) {
-        ctx.fillStyle = '#16203a'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 15, wy - 7); ctx.lineTo(cx + sd * 12, wy + 5); ctx.fill();
-        ctx.fillStyle = '#d8f8ff'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 13, wy - 5); ctx.lineTo(cx + sd * 10, wy + 3); ctx.fill();
+        ctx.fillStyle = '#16203a'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 18, wy - 9); ctx.lineTo(cx + sd * 14, wy + 1); ctx.lineTo(cx + sd * 16, wy + 7); ctx.fill();
+        ctx.fillStyle = '#d8f8ff'; ctx.beginPath(); ctx.moveTo(cx, wy); ctx.lineTo(cx + sd * 15, wy - 7); ctx.lineTo(cx + sd * 12, wy + 0); ctx.lineTo(cx + sd * 13, wy + 5); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(cx + sd * 4, wy - 2, 2, 2);
       }
       ctx.globalAlpha = 1;
     }
@@ -381,69 +384,88 @@ class Player {
     drawKaen(ctx, this.cx, this.y + this.h, this.facing, this.anim(), this.animT, flash);
     if (this.healing) {
       const k = this.healT / (this.healTime || P.HEAL_T);
-      ctx.strokeStyle = '#bff6ff'; ctx.globalAlpha = 0.8; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(191,246,255,0.35)'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(this.cx, this.cy, 18, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#bff6ff'; ctx.globalAlpha = 0.95; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(this.cx, this.cy, 16, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.45 + k * 0.4; ctx.fillStyle = '#bff6ff';
+      ctx.beginPath(); ctx.arc(this.cx, this.cy - 2, 4 + k * 3, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
   }
 }
 
-// Dibujo procedural del personaje (origen: centro de los pies)
+// Dibujo procedural del personaje (origen: centro de los pies). Silueta carmesí legible a escala pequeña.
 function drawKaen(ctx, fx, fy, facing, anim, t, solid) {
   ctx.save();
   ctx.translate(Math.round(fx), Math.round(fy));
   ctx.scale(facing, 1);
-  const C = solid ? { red: solid, red2: solid, dark: solid, white: solid, grey: solid, eye: solid, skin: solid, gem: solid }
-    : { red: '#d8283f', red2: '#8e1428', dark: '#241c30', white: '#eef0fa', grey: '#9aa0bc', eye: '#5ff0ff', skin: '#f2c9a8', gem: '#37e0ff' };
+  const C = solid ? { red: solid, red2: solid, dark: solid, white: solid, grey: solid, eye: solid, skin: solid, gem: solid, black: solid, hi: solid }
+    : { red: '#e03048', red2: '#9a1830', dark: '#1c1428', white: '#f2f4ff', grey: '#9aa3c4', eye: '#5ff0ff', skin: '#f2c9a8', gem: '#37e0ff', black: '#0c0814', hi: '#ff7a90' };
   const R = (c, x, y, w, h) => { ctx.fillStyle = C[c]; ctx.fillRect(x, y, w, h); };
-  let bob = 0, lean = 0, legA = 0, legB = 0, crouch = 0, armUp = false;
+  let bob = 0, lean = 0, legA = 0, legB = 0, crouch = 0, armUp = false, slash = false;
   switch (anim) {
-    case 'run': { const s = Math.sin(t * 16); legA = Math.round(s * 3); legB = -legA; bob = Math.abs(s) > 0.7 ? -1 : 0; lean = 1; break; }
-    case 'dash': lean = 3; crouch = 2; legA = 4; legB = -4; break;
-    case 'airdash': lean = 3; legA = 3; legB = -3; break;
-    case 'jump': legA = 2; legB = -1; crouch = 1; break;
-    case 'fall': legA = -1; legB = 2; break;
-    case 'wall': legA = 1; legB = -2; break;
-    case 'hurt': lean = -2; legA = -2; legB = 2; break;
-    case 'heal': crouch = 3; break;
+    case 'run': { const s = Math.sin(t * 16); legA = Math.round(s * 3); legB = -legA; bob = Math.abs(s) > 0.7 ? -1 : 0; lean = 2; break; }
+    case 'dash': lean = 4; crouch = 3; legA = 5; legB = -4; break;
+    case 'airdash': lean = 4; legA = 3; legB = -3; break;
+    case 'jump': legA = 2; legB = -2; crouch = 1; break;
+    case 'fall': legA = -2; legB = 3; lean = 1; break;
+    case 'wall': legA = 1; legB = -3; lean = -1; break;
+    case 'hurt': lean = -3; legA = -2; legB = 2; crouch = 1; break;
+    case 'heal': crouch = 3; bob = Math.sin(t * 8) > 0 ? -1 : 0; break;
     case 'sit': crouch = 6; break;
-    case 'g1': case 'g2': case 'g3': lean = 2; legA = 3; legB = -3; crouch = 1; break;
+    case 'g1': case 'g2': case 'g3': lean = 3; legA = 4; legB = -3; crouch = 1; slash = true; break;
+    case 'air': lean = 2; slash = true; break;
+    case 'down': lean = 1; crouch = 1; slash = true; break;
     case 'up': armUp = true; break;
-    default: bob = Math.sin(t * 3) > 0.6 ? -1 : 0;
+    default: bob = Math.sin(t * 2.6) > 0.55 ? -1 : 0;
   }
-  const by = bob + crouch; // desplazamiento del torso
+  const by = bob + crouch, tx = lean;
+  // sombra bajo los pies
+  if (!solid) { ctx.globalAlpha = 0.25; ctx.fillStyle = '#000'; ctx.fillRect(-5, -1, 10, 2); ctx.globalAlpha = 1; }
   // piernas
   if (anim === 'sit') {
-    R('red2', -5, -7, 9, 3); R('red', 3, -7, 3, 7); R('white', 3, -2, 4, 2);
+    R('red2', -5, -7, 10, 3); R('red', 3, -7, 3, 7); R('white', 3, -2, 4, 2); R('black', 3, 4, 4, 1);
   } else {
-    R('red2', -4 + legB, -9 + Math.max(0, crouch - 1), 3, 9 - Math.max(0, crouch - 1));
-    R('red2', -5 + legB, -4, 4, 4);
-    R('dark', 0 + legA, -9 + Math.max(0, crouch - 1), 3, 6);
-    R('red', 0 + legA, -5, 4, 5); R('white', 0 + legA, -5, 4, 1);
+    R('red2', -5 + legB, -10 + Math.max(0, crouch - 1), 4, 10 - Math.max(0, crouch - 1));
+    R('black', -5 + legB, -3, 4, 3);
+    R('dark', -1 + legA, -10 + Math.max(0, crouch - 1), 4, 6);
+    R('red', -1 + legA, -5, 5, 5); R('white', -1 + legA, -5, 5, 1); R('black', -1 + legA, -1, 5, 1);
   }
-  // torso
-  const tx = lean;
-  R('dark', -4 + tx, -17 + by, 8, 8);
-  R('red', -4 + tx, -17 + by, 8, 5);
-  R('red2', -4 + tx, -13 + by, 8, 1);
-  R('gem', -1 + tx, -16 + by, 2, 2);
-  R('grey', -3 + tx, -11 + by, 6, 1);
-  // hombrera trasera
-  R('white', -6 + tx, -18 + by, 4, 3); R('grey', -6 + tx, -16 + by, 4, 1);
-  // cabeza
-  const hx = tx + (lean > 1 ? 1 : 0);
-  R('red', -4 + hx, -25 + by, 8, 7);
-  R('skin', 0 + hx, -22 + by, 4, 4);
-  R('eye', 2 + hx, -21 + by, 1, 2);
-  R('white', -4 + hx, -26 + by, 6, 2);   // cresta
-  R('red2', -4 + hx, -19 + by, 3, 1);
-  R('gem', 1 + hx, -24 + by, 2, 1);
-  // brazo delantero y empuñadura
-  if (armUp) { R('red', 1 + tx, -22 + by, 3, 6); R('grey', 1 + tx, -25 + by, 2, 3); }
-  else if (anim === 'wall') { R('red', -6 + tx, -17 + by, 3, 5); }
-  else if (anim.startsWith('g') || anim === 'air' || anim === 'down') { R('red', 2 + tx, -16 + by, 5, 3); R('grey', 6 + tx, -17 + by, 2, 4); }
-  else { R('red', 1 + tx, -16 + by, 3, 6); R('white', 1 + tx, -11 + by, 3, 2); }
-  // hombrera delantera
-  R('white', 0 + tx, -18 + by, 4, 3);
+  // capa / cola corta detrás
+  R('red2', -7 + tx, -16 + by, 4, 10); R('dark', -6 + tx, -15 + by, 2, 8);
+  // torso acorazado
+  R('dark', -5 + tx, -18 + by, 10, 9);
+  R('red', -5 + tx, -18 + by, 10, 6);
+  R('hi', -4 + tx, -18 + by, 8, 1);
+  R('red2', -5 + tx, -13 + by, 10, 1);
+  R('gem', -1 + tx, -16 + by, 3, 3); R('white', 0 + tx, -15 + by, 1, 1);
+  R('grey', -4 + tx, -11 + by, 8, 1);
+  // hombreras
+  R('white', -7 + tx, -19 + by, 5, 4); R('grey', -7 + tx, -16 + by, 5, 1);
+  R('white', 1 + tx, -19 + by, 5, 4); R('grey', 1 + tx, -16 + by, 5, 1);
+  // cabeza + yelmo
+  const hx = tx + (lean > 2 ? 1 : 0);
+  R('dark', -5 + hx, -26 + by, 10, 8);
+  R('red', -5 + hx, -26 + by, 10, 7);
+  R('hi', -4 + hx, -26 + by, 8, 1);
+  R('skin', 0 + hx, -23 + by, 5, 4);
+  R('eye', 3 + hx, -22 + by, 2, 2); R('white', 3 + hx, -22 + by, 1, 1);
+  // cresta plateada
+  R('white', -5 + hx, -28 + by, 7, 3); R('grey', -5 + hx, -26 + by, 7, 1);
+  R('gem', 1 + hx, -27 + by, 3, 2);
+  R('red2', -5 + hx, -20 + by, 4, 1);
+  // brazo + empuñadura / sable
+  if (armUp) {
+    R('red', 1 + tx, -24 + by, 3, 7); R('grey', 1 + tx, -27 + by, 3, 4); R('white', 2 + tx, -29 + by, 1, 2);
+  } else if (anim === 'wall') {
+    R('red', -7 + tx, -18 + by, 3, 6); R('white', -7 + tx, -13 + by, 3, 2);
+  } else if (slash) {
+    R('red', 2 + tx, -17 + by, 6, 3); R('grey', 7 + tx, -18 + by, 3, 5);
+    R('white', 8 + tx, -19 + by, 1, 2); R('gem', 8 + tx, -14 + by, 2, 2);
+  } else {
+    R('red', 2 + tx, -17 + by, 3, 7); R('white', 2 + tx, -11 + by, 3, 2);
+    R('grey', 3 + tx, -10 + by, 2, 4); R('white', 3 + tx, -11 + by, 2, 1);
+  }
   ctx.restore();
 }

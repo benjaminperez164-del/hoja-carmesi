@@ -2,7 +2,7 @@
 
 Plataformas de acción 2D: movimiento rápido de espadachín (dash, salto de pared, combo de sable)
 mezclado con exploración estilo metroidvania (rebote/pogo, energía para curarse, bancos, máscaras de salud).
-Todo el arte es provisional y se dibuja por código (Canvas 2D). Sin dependencias: funciona sin conexión.
+Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas con contorno, fondos en parallax por zona y efectos de partículas. Sin dependencias: funciona sin conexión.
 
 ## Cómo jugar
 - Abre `index.html` directamente en el navegador, o sirve la carpeta:

@@ -155,12 +155,15 @@ class Prisma extends Enemy {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(this.aim) * len, y + Math.sin(this.aim) * len); ctx.stroke();
       }
     }
+    // halo
+    ctx.fillStyle = 'rgba(159,230,255,0.28)'; ctx.beginPath(); ctx.arc(x, y, 12 + Math.sin(this.t * 5), 0, Math.PI * 2); ctx.fill();
     drawOutlined(ctx, c => {
-      ctx.fillStyle = c('#9fe6ff'); ctx.beginPath(); ctx.moveTo(x, y - 10); ctx.lineTo(x + 8, y); ctx.lineTo(x, y + 10); ctx.lineTo(x - 8, y); ctx.fill();
-      ctx.fillStyle = c('#e8fbff'); ctx.fillRect(x - 3, y - 6, 3, 5);
+      ctx.fillStyle = c('#9fe6ff'); ctx.beginPath(); ctx.moveTo(x, y - 11); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 11); ctx.lineTo(x - 9, y); ctx.fill();
+      ctx.fillStyle = c('#e8fbff'); ctx.beginPath(); ctx.moveTo(x, y - 8); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 5); ctx.fill();
       ctx.fillStyle = c('#c050e0'); ctx.fillRect(x - 3, y - 1, 6, 4);
       const tel = this.state === 'tel' && Math.floor(this.st * 16) % 2 === 0;
       ctx.fillStyle = c(tel ? '#ffffff' : '#ff2f9a'); ctx.fillRect(x - 1 + Math.round(Math.cos(this.aim)), y, 2, 2);
+      ctx.fillStyle = c('#ffffff'); ctx.fillRect(x - 1, y - 1, 1, 1);
     }, fl);
   }
 }
@@ -385,15 +388,19 @@ class Oracle extends Enemy {
       ctx.fillStyle = c(p2 ? '#ff9ae0' : '#9fe6ff'); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 14, y + 16); ctx.lineTo(x, y + 40); ctx.lineTo(x - 14, y + 16); ctx.fill();
       ctx.fillStyle = c('#e8fbff'); ctx.beginPath(); ctx.moveTo(x, y + 3); ctx.lineTo(x + 6, y + 16); ctx.lineTo(x, y + 30); ctx.fill();
       ctx.fillStyle = c(p2 ? '#c02a8a' : '#3a78c8'); ctx.beginPath(); ctx.moveTo(x, y + 30); ctx.lineTo(x - 14, y + 16); ctx.lineTo(x - 5, y + 16); ctx.fill();
+      ctx.fillStyle = c('#ffffff'); ctx.fillRect(x - 1, y + 8, 2, 6);
       // ojo
       ctx.fillStyle = c('#16203a'); ctx.fillRect(x - 6, y + 13, 12, 7);
       ctx.fillStyle = c(tel ? '#ffffff' : (glow ? '#ffd24a' : '#806020')); ctx.fillRect(x - 4 + this.facing * 2, y + 15, 4, 3);
+      ctx.fillStyle = c('#ffffff'); ctx.fillRect(x - 3 + this.facing * 2, y + 15, 1, 1);
       // corona dorada
       ctx.fillStyle = c('#ffd24a'); ctx.fillRect(x - 8, y - 3, 3, 5); ctx.fillRect(x - 1, y - 7, 3, 7); ctx.fillRect(x + 6, y - 3, 3, 5);
+      ctx.fillStyle = c('#fff6c0'); ctx.fillRect(x - 1, y - 7, 3, 2);
       // fragmentos orbitando
       for (let i = 0; i < (p2 ? 4 : 3); i++) {
         const a = this.t * (p2 ? 2.6 : 1.8) + i * Math.PI * 2 / (p2 ? 4 : 3), ox = x + Math.cos(a) * 24, oy = y + 18 + Math.sin(a) * 10;
         ctx.fillStyle = c(p2 ? '#ffd0f0' : '#d8f8ff'); ctx.fillRect(Math.round(ox) - 2, Math.round(oy) - 3, 4, 6);
+        ctx.fillStyle = c('#ffffff'); ctx.fillRect(Math.round(ox) - 1, Math.round(oy) - 2, 1, 2);
       }
     }, this.flashT > 0);
   }

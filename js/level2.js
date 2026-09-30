@@ -23,11 +23,16 @@ class Mover {
   }
   draw(ctx) {
     const x = Math.round(this.x), y = Math.round(this.y);
-    ctx.fillStyle = OUTLINE; ctx.fillRect(x - 1, y - 1, this.w + 2, this.h + 3);
+    ctx.fillStyle = OUTLINE; ctx.fillRect(x - 1, y - 1, this.w + 2, this.h + 4);
     ctx.fillStyle = '#b98a4e'; ctx.fillRect(x, y, this.w, this.h);
     ctx.fillStyle = '#f2d27a'; ctx.fillRect(x, y, this.w, 2);
+    ctx.fillStyle = '#fff6d0'; ctx.fillRect(x + 1, y, this.w - 2, 1);
     ctx.fillStyle = '#7a5530'; for (let i = 6; i < this.w; i += 12) ctx.fillRect(x + i, y + 3, 2, 2);
     ctx.fillStyle = '#5ad1ff'; ctx.fillRect(x + this.w / 2 - 2, y + 2, 4, 2);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + this.w / 2 - 1, y + 2, 1, 1);
+    // cadenas
+    ctx.fillStyle = OUTLINE; ctx.fillRect(x + 3, y - 4, 2, 4); ctx.fillRect(x + this.w - 5, y - 4, 2, 4);
+    ctx.fillStyle = '#8a9aaa'; ctx.fillRect(x + 3, y - 3, 2, 2); ctx.fillRect(x + this.w - 5, y - 3, 2, 2);
   }
 }
 
@@ -177,9 +182,10 @@ class Shielder extends Enemy {
       R('#4a3a2a', -5 + step, 15, 3, 5); R('#4a3a2a', 1 - step, 15, 3, 5);
       R('#b07a3a', -6, 6, 11, 10); R('#e0a85a', -6, 6, 11, 2);
       R('#8a5a2a', -5, -1, 9, 8); R('#d8b070', -4, 0, 7, 2); R('#1c1018', 1, 3, 3, 2);
-      R('#e0463c', -7, -4, 6, 3);                            // penacho
+      R('#e0463c', -7, -4, 6, 3); R('#ff8a7a', -6, -4, 4, 1);
       // escudo frontal
       R(this.shieldFlash > 0 ? '#ffffff' : '#9fd0f0', tel ? 6 : 4, 2, 5, 16); R('#e8f6ff', tel ? 6 : 4, 2, 5, 2); R('#ffd24a', tel ? 7 : 5, 8, 3, 3);
+      if (tel) { R('#ff3a5c', tel ? 6 : 4, 2, 5, 1); R('#ffffff', tel ? 7 : 5, 9, 1, 1); }
       ctx.restore();
     }, flash);
   }
@@ -212,7 +218,8 @@ class Turret extends Enemy {
       R('#7d8a96', 1, 0, 3, 3); R('#7d8a96', 10, 0, 3, 3);   // orejas
       R(glow ? '#ffffff' : '#ffb020', 3, 5, 3, 3); R(glow ? '#ffffff' : '#ffb020', 8, 5, 3, 3);
       R('#1c1018', this.facing > 0 ? 5 : 4, 6, 1, 1); R('#1c1018', this.facing > 0 ? 10 : 9, 6, 1, 1);
-      R('#e0a020', 6, 8, 2, 2);
+      R('#e0a020', 6, 8, 2, 2); R('#ffffff', 6, 8, 1, 1);
+      if (glow) { R('rgba(255,176,32,0.0)', 0, 0, 1, 1); }
     }, this.flashT > 0);
   }
 }
@@ -432,20 +439,24 @@ class Herald extends Enemy {
     drawOutlined(ctx, c => {
       ctx.save(); ctx.translate(x + this.w / 2, y + this.h); ctx.scale(f, 1);
       const R = (col, a, b, w, h) => { ctx.fillStyle = c(col); ctx.fillRect(a, b, w, h); };
-      // alas
-      R(p2 ? '#ff8a3a' : '#fff4d8', -18, -34 - wing * 4, 10, 16); R(p2 ? '#ffb020' : '#ffd88a', -20, -22 - wing * 4, 8, 10);
+      // alas con plumas
+      R(p2 ? '#ff8a3a' : '#fff4d8', -18, -34 - wing * 4, 10, 16);
+      R(p2 ? '#ffb020' : '#ffd88a', -20, -22 - wing * 4, 8, 10);
+      R(p2 ? '#ffd080' : '#ffffff', -17, -32 - wing * 4, 3, 8);
+      R(p2 ? '#ff8a3a' : '#fff4d8', 8, -30 - wing * 2, 8, 12);
       // piernas
       R('#6a4a8a', -6, -10, 5, 10); R('#6a4a8a', 2, -10, 5, 10); R('#ffd24a', -7, -3, 6, 3); R('#ffd24a', 1, -3, 6, 3);
       // cuerpo
       R('#f2f0ff', -8, -26, 16, 17); R(p2 ? '#ffb020' : '#ffd24a', -8, -26, 16, 3); R('#6a4a8a', -8, -14, 16, 3);
-      R(tel ? '#ffffff' : '#5ad1ff', -2, -21, 4, 4);
+      R('#ffffff', -6, -24, 6, 1);
+      R(tel ? '#ffffff' : '#5ad1ff', -2, -21, 4, 4); R('#ffffff', -1, -20, 1, 1);
       // cabeza con yelmo de pico
       R('#f2f0ff', -5, -35, 11, 9); R(p2 ? '#ffb020' : '#ffd24a', -5, -36, 11, 2); R('#ffd24a', 6, -31, 5, 3);
-      R(tel ? '#ffffff' : '#1c1018', 2, -32, 3, 2);
-      R(p2 ? '#ff5a2a' : '#ffd24a', -3, -40, 3, 4);
+      R(tel ? '#ffffff' : '#1c1018', 2, -32, 3, 2); R('#ffffff', 2, -32, 1, 1);
+      R(p2 ? '#ff5a2a' : '#ffd24a', -3, -40, 3, 4); R('#ffffff', -2, -40, 1, 2);
       // lanza
-      if (this.state === 'lunge' || this.state === 'lungeTel') { R('#8a6a4a', 2, -20, 22, 2); R('#e8f6ff', 24, -22, 6, 6); }
-      else { R('#8a6a4a', 9, -40, 2, 38); R('#e8f6ff', 8, -46, 4, 7); }
+      if (this.state === 'lunge' || this.state === 'lungeTel') { R('#8a6a4a', 2, -20, 22, 2); R('#e8f6ff', 24, -22, 6, 6); R('#ffffff', 28, -21, 2, 2); }
+      else { R('#8a6a4a', 9, -40, 2, 38); R('#e8f6ff', 8, -46, 4, 7); R('#ffffff', 9, -45, 2, 2); }
       ctx.restore();
     }, this.flashT > 0);
   }

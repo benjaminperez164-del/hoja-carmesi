@@ -131,32 +131,37 @@ class Boss extends Enemy {
     const body = f ? '#ffffff' : (this.phase2 ? '#5a1426' : '#2e2440');
     const plate = f ? '#ffffff' : (this.phase2 ? '#a3243e' : '#6b5a8a');
     const hi = f ? '#ffffff' : (this.phase2 ? '#e0466a' : '#a898c8');
+    const OL = '#0a0610';
     const crouch = (this.state === 'chargeTel' || this.state === 'leapTel' || this.state === 'stun') ? 3 : 0;
     ctx.save();
     ctx.translate(x + this.w / 2, y + this.h);
     ctx.scale(this.facing, 1);
     const R = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
-    // capa/sombra
-    R(body, -16, -26 + crouch, 10, 24);
+    // silueta oscura
+    R(OL, -17, -40 + crouch, 34, 40); R(OL, -11, -47 + crouch, 5, 8); R(OL, 6, -47 + crouch, 5, 8);
+    // capa
+    R(body, -16, -26 + crouch, 10, 24); R(plate, -15, -25 + crouch, 3, 20);
     // piernas
     R(body, -9, -10, 6, 10); R(body, 3, -10, 6, 10);
-    R(plate, -10, -4, 8, 4); R(plate, 2, -4, 8, 4);
+    R(plate, -10, -4, 8, 4); R(plate, 2, -4, 8, 4); R(hi, -9, -4, 6, 1); R(hi, 3, -4, 6, 1);
     // torso
     R(body, -11, -28 + crouch, 22, 19);
     R(plate, -10, -27 + crouch, 20, 8); R(hi, -8, -26 + crouch, 12, 2);
     R(plate, -6, -18 + crouch, 12, 6);
-    // núcleo
-    R(tel ? '#ffffff' : '#ff3a5c', -2, -22 + crouch, 5, 5);
+    // núcleo pulsante
+    R(tel ? '#ffffff' : '#ff3a5c', -3, -23 + crouch, 7, 7);
+    R('#ffffff', -1, -21 + crouch, 2, 2);
+    if (!f && Math.floor(this.t * 6) % 2) { ctx.globalAlpha = 0.35; R('#ff3a5c', -6, -26 + crouch, 13, 13); ctx.globalAlpha = 1; }
     // cabeza con cuernos
     R(body, -6, -38 + crouch, 13, 11);
     R(plate, -5, -37 + crouch, 11, 5);
     R(hi, -9, -44 + crouch, 3, 8); R(hi, 7, -44 + crouch, 3, 8);
     R(hi, -10, -46 + crouch, 2, 3); R(hi, 9, -46 + crouch, 2, 3);
-    R(tel ? '#ffffff' : '#ff3a5c', 2, -33 + crouch, 4, 2);
+    R(tel ? '#ffffff' : '#ff3a5c', 2, -33 + crouch, 4, 2); R('#ffffff', 2, -33 + crouch, 1, 1);
     // brazo/espada
-    if (this.state === 'orbsTel') { R(plate, 6, -40 + crouch, 4, 14); R('#ff5ab0', 5, -46, 6, 6); }
-    else if (this.state === 'charge') { R(plate, 8, -22, 14, 4); R('#e8e0ff', 20, -23, 12, 2); }
-    else { R(plate, 9, -26 + crouch, 4, 13); R('#e8e0ff', 11, -14 + crouch, 2, 12); }
+    if (this.state === 'orbsTel') { R(plate, 6, -40 + crouch, 4, 14); R('#ff5ab0', 5, -46, 6, 6); R('#ffffff', 6, -45, 2, 2); }
+    else if (this.state === 'charge') { R(plate, 8, -22, 14, 4); R('#e8e0ff', 20, -23, 12, 2); R('#ffffff', 30, -24, 3, 4); }
+    else { R(plate, 9, -26 + crouch, 4, 13); R('#e8e0ff', 11, -14 + crouch, 2, 12); R('#ffffff', 11, -4 + crouch, 2, 2); }
     ctx.restore();
   }
 }
@@ -171,8 +176,10 @@ class Shockwave {
   draw(ctx) {
     const x = Math.round(this.x), y = Math.round(this.y);
     const flick = Math.floor(this.t * 20) % 2;
+    ctx.fillStyle = '#1c0810'; ctx.fillRect(x, y + 2, this.w, this.h - 1);
     ctx.fillStyle = '#ff3a5c'; ctx.fillRect(x + 1, y + 4, this.w - 2, this.h - 4);
     ctx.fillStyle = flick ? '#ffffff' : '#ffb0c0'; ctx.fillRect(x + 3, y, this.w - 6, this.h);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + this.w / 2 - 1, y + 2, 2, this.h - 4);
   }
 }
 
