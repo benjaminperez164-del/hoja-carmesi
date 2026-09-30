@@ -40,6 +40,10 @@ function shade(hex, k) {
   return `rgb(${r},${g},${b})`;
 }
 function renderRoomTiles(room) {
+  if (room.theme === 'forge') return renderTintTiles(room, '#3a2818', '#c08030', '#ffb020');
+  if (room.theme === 'storm') return renderTintTiles(room, '#142038', '#5080c0', '#7ad8ff');
+  if (room.theme === 'garden') return renderTintTiles(room, '#143020', '#3a8a40', '#6fe080');
+  if (room.theme === 'final') return renderTintTiles(room, '#2a1018', '#8a2040', '#ff3a5c');
   if (room.theme === 'day') return renderDayTiles(room);
   if (room.theme === 'crystal') return renderCrystalTiles(room);
   const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
@@ -95,6 +99,26 @@ function renderRoomTiles(room) {
 }
 
 // Paleta diurna: roca cálida media-oscura con contorno negro y césped brillante (alto contraste con el cielo claro)
+function renderTintTiles(room, dark, mid, lite) {
+  const c = document.createElement('canvas'); c.width = room.pw; c.height = room.h * TILE;
+  const g = c.getContext('2d');
+  for (let y = 0; y < room.h; y++) for (let x = 0; x < room.w; x++) {
+    const tile = room.grid[y][x]; if (tile === T_EMPTY) continue;
+    const px = x * TILE, py = y * TILE;
+    if (tile === T_SPIKE) {
+      g.fillStyle = mid; g.beginPath(); g.moveTo(px, py + TILE); g.lineTo(px + 8, py + 2); g.lineTo(px + TILE, py + TILE); g.fill();
+    } else if (tile === T_PLAT) {
+      g.fillStyle = dark; g.fillRect(px, py, TILE, 6);
+      g.fillStyle = lite; g.fillRect(px, py + 1, TILE, 2);
+      g.fillStyle = mid; g.fillRect(px, py + 3, TILE, 2);
+    } else {
+      g.fillStyle = dark; g.fillRect(px, py, TILE, TILE);
+      g.fillStyle = mid; g.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+      g.fillStyle = lite; g.fillRect(px + 1, py + 1, TILE - 2, 2);
+    }
+  }
+  room.canvas = c;
+}
 function renderDayTiles(room) {
   const c = document.createElement('canvas'); c.width = room.pw; c.height = room.ph;
   const g = c.getContext('2d');
@@ -203,7 +227,7 @@ const Save = {
   write(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
   clear() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} },
 };
-const ENEMY_TYPES = ['walker', 'flyer', 'shield', 'turret', 'prisma', 'moth'];
+const ENEMY_TYPES = ['walker', 'flyer', 'shield', 'turret', 'prisma', 'moth', 'gear', 'spark', 'sprout'];
 // Objetos recogibles (una vez por partida; la clave se guarda en «secrets»)
 const PICKUPS = {
   shard: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
@@ -214,24 +238,40 @@ const PICKUPS = {
   cristal: { msg: '¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', col: '#ffb020' },
   vasija: { msg: '¡Vasija de Energía! Curar cuesta menos energía (4 curas con el orbe lleno)', col: '#7ad8ff' },
   orbe: { msg: '¡Orbe Carmesí! Tus golpes generan aún más energía', col: '#ff5a78' },
+  shard6: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard7: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard8: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard9: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard10: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard11: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  shard12: { msg: '¡Fragmento de máscara! Salud máxima +1', col: '#ffffff', hp: true },
+  orbe2: { msg: '¡Orbe Carmesí! Tus golpes generan aún más energía', col: '#ff5a78' },
+  orbe3: { msg: '¡Orbe Carmesí! Tus golpes generan aún más energía', col: '#ff5a78' },
+  cristal2: { msg: '¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', col: '#ffb020' },
+  cristal3: { msg: '¡Cristal del Alba! Ganas más energía por golpe y curas más rápido', col: '#ffb020' },
+  vasija2: { msg: '¡Vasija de Energía! Curar cuesta menos energía', col: '#7ad8ff' },
   celeste: { msg: '', col: '#9fe6ff', ability: true },
   cargado: { msg: '', col: '#ff3a5c', ability: true },
 };
-const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3', 'shard4', 'orbe', 'shard5'];
+const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3', 'shard4', 'orbe', 'shard5', 'shard6', 'shard7', 'orbe2', 'shard8', 'shard9', 'cristal2', 'shard10', 'vasija2', 'orbe3', 'shard11', 'shard12', 'cristal3'];
 const ZONE_INTRO = {
   1: { name: 'Reino Hueco', line: 'Donde la noche nunca termina' },
   2: { name: 'Cumbres del Alba', line: 'El viento corta como el acero' },
   3: { name: 'Templo de Cristal', line: 'La luz se quiebra en mil filos' },
+  4: { name: 'Forja de Engranajes', line: 'El metal aún arde bajo tierra' },
+  5: { name: 'Techos de la Tormenta', line: 'El cielo se abre en relámpagos' },
+  6: { name: 'Jardín de Luz', line: 'La raíz recuerda cada paso' },
+  7: { name: 'Abismo Carmesí', line: 'Aquí terminan todos los ecos' },
 };
 const CREDITS = [
   { title: 'HOJA CARMESÍ', lines: ['Ecos del Abismo'] },
   { title: 'Héroe', lines: ['Kaen'] },
-  { title: 'Zonas', lines: ['Reino Hueco', 'Cumbres del Alba', 'Templo de Cristal'] },
-  { title: 'Jefes', lines: ['Guardián Hueco', 'Heraldo del Alba', 'Oráculo Prismático'] },
+  { title: 'Zonas', lines: ['Reino Hueco', 'Cumbres del Alba', 'Templo de Cristal', 'Forja de Engranajes', 'Techos de la Tormenta', 'Jardín de Luz'] },
+  { title: 'Jefes', lines: ['Guardián Hueco', 'Heraldo del Alba', 'Oráculo Prismático', 'Forjador', 'Tempestad', 'Raíz Primigenia', 'Ecos del Abismo'] },
   { title: 'Gracias por jugar', lines: ['Benjamin Perez'] },
 ];
-const LEVEL_NAMES = { 1: 'Reino Hueco', 2: 'Cumbres del Alba', 3: 'Templo de Cristal' };
-const LEVEL_SHORT = { 1: 'Abismo', 2: 'Cumbres', 3: 'Templo' };
+const LEVEL_NAMES = { 1: 'Reino Hueco', 2: 'Cumbres del Alba', 3: 'Templo de Cristal', 4: 'Forja de Engranajes', 5: 'Techos de la Tormenta', 6: 'Jardín de Luz', 7: 'Abismo Carmesí' };
+const LEVEL_SHORT = { 1: 'Abismo', 2: 'Cumbres', 3: 'Templo', 4: 'Forja', 5: 'Tormenta', 6: 'Jardín', 7: 'Abismo' };
 // Entradas de la colección (solo lectura; usa secrets / beaten existentes)
 const COLLECTION = [
   { key: 'shard', name: 'Fragmento de máscara', where: 'Cripta Olvidada · N1', col: '#ffffff' },
@@ -244,11 +284,33 @@ const COLLECTION = [
   { key: 'shard5', name: 'Fragmento de máscara', where: 'Atrio de Cristal · N3', col: '#ffffff' },
   { key: 'celeste', name: 'Salto Celeste', where: 'Heraldo del Alba · N2', col: '#9fe6ff', ability: true },
   { key: 'cargado', name: 'Sable Cargado', where: 'Oráculo Prismático · N3', col: '#ff3a5c', ability: true },
+  { key: 'shard6', name: 'Fragmento de máscara', where: 'Hueco Umbrío · N1', col: '#ffffff' },
+  { key: 'shard7', name: 'Fragmento de máscara', where: 'Puente del Eco · N1', col: '#ffffff' },
+  { key: 'orbe2', name: 'Orbe Carmesí', where: 'Nido del Viento · N2', col: '#ff5a78' },
+  { key: 'shard8', name: 'Fragmento de máscara', where: 'Pasaje del Alba · N2', col: '#ffffff' },
+  { key: 'shard9', name: 'Fragmento de máscara', where: 'Cámara de la Lente · N3', col: '#ffffff' },
+  { key: 'cristal2', name: 'Cristal del Alba', where: 'Umbral de Luz · N3', col: '#ffb020' },
+  { key: 'shard10', name: 'Fragmento de máscara', where: 'Cofre de Bronce · N4', col: '#ffffff' },
+  { key: 'vasija2', name: 'Vasija de Energía', where: 'Puente de Magma · N4', col: '#7ad8ff' },
+  { key: 'orbe3', name: 'Orbe Carmesí', where: 'Nido Eléctrico · N5', col: '#ff5a78' },
+  { key: 'shard11', name: 'Fragmento de máscara', where: 'Puente Relámpago · N5', col: '#ffffff' },
+  { key: 'shard12', name: 'Fragmento de máscara', where: 'Pétalo Oculto · N6', col: '#ffffff' },
+  { key: 'cristal3', name: 'Cristal del Alba', where: 'Puente de Raíces · N6', col: '#ffb020' },
 ];
 const BOSS_META = [
   { key: 'guardian', name: 'Guardián Hueco', level: 1 },
+  { key: 'umbra', name: 'Umbra del Foso', level: 1 },
   { key: 'heraldo', name: 'Heraldo del Alba', level: 2 },
+  { key: 'aureola', name: 'Aureola Alada', level: 2 },
   { key: 'oraculo', name: 'Oráculo Prismático', level: 3 },
+  { key: 'centinela', name: 'Centinela de Cuarzo', level: 3 },
+  { key: 'capataz', name: 'Capataz de Bronce', level: 4 },
+  { key: 'forjador', name: 'Forjador de Engranajes', level: 4 },
+  { key: 'nube', name: 'Nube Viviente', level: 5 },
+  { key: 'tempestad', name: 'Tempestad Alada', level: 5 },
+  { key: 'espina', name: 'Espina Mayor', level: 6 },
+  { key: 'raiz', name: 'Raíz Primigenia', level: 6 },
+  { key: 'ecos', name: 'Ecos del Abismo', level: 7 },
 ];
 
 // ---------- Estado del juego ----------
@@ -270,16 +332,19 @@ const Game = {
   get level() { return this.room ? this.room.level : 1; },
   applyUpgrades() {
     const p = this.player;
-    p.soulGain = this.secrets.has('cristal') ? 17 : P.SOUL_HIT;
-    if (this.secrets.has('orbe')) p.soulGain += 5;
-    p.healTime = this.secrets.has('cristal') ? 0.62 : P.HEAL_T;
-    p.healCost = this.secrets.has('vasija') ? 24 : P.HEAL_COST;
+    const hasC = this.secrets.has('cristal') || this.secrets.has('cristal2') || this.secrets.has('cristal3');
+    const hasO = this.secrets.has('orbe') || this.secrets.has('orbe2') || this.secrets.has('orbe3');
+    const hasV = this.secrets.has('vasija') || this.secrets.has('vasija2');
+    p.soulGain = hasC ? 17 : P.SOUL_HIT;
+    if (hasO) p.soulGain += 5;
+    p.healTime = hasC ? 0.62 : P.HEAL_T;
+    p.healCost = hasV ? 24 : P.HEAL_COST;
     p.hasDouble = this.secrets.has('celeste');
     p.hasCharge = this.secrets.has('cargado');
   },
   saveGame() {
     const ok = Save.write({
-      v: 1, ver: 2, level: this.level, respawn: this.respawn, maxHp: this.player.maxHp,
+      v: 1, ver: 3, level: this.level, respawn: this.respawn, maxHp: this.player.maxHp,
       secrets: [...this.secrets], beaten: this.beaten, playTime: this.playTime,
       visited: World.rooms.filter(r => r.visited).map(r => r.id),
     });
@@ -293,7 +358,11 @@ const Game = {
     // Migración: Heraldo → Salto Celeste; Oráculo → Sable Cargado
     if (this.beaten.heraldo && !this.secrets.has('celeste')) this.secrets.add('celeste');
     if (this.beaten.oraculo && !this.secrets.has('cargado')) this.secrets.add('cargado');
-    if (d.completed && !this.beaten.oraculo) delete d.completed;
+    // Partidas que terminaban en N3: ahora continúan hacia N4 (créditos solo tras Ecos)
+    if (d.completed && !this.beaten.ecos) {
+      delete d.completed;
+      try { Save.write(Object.assign({}, d, { completed: false })); } catch (e) {}
+    }
     this.killed = new Set(); this.playTime = d.playTime || 0;
     World.rooms.forEach(r => { r.visited = (d.visited || []).includes(r.id); });
     this.restoreWalls();
@@ -413,13 +482,16 @@ const Game = {
   mapAction(id) {
     if (id === 'back') { if (this.mapZone) this.mapZone = 0; else this.state = 'pause'; }
     else if (id === 'overview') this.mapZone = 0;
-    else if (id === 'prev') this.mapZone = this.mapZone <= 1 ? 3 : this.mapZone - 1;
-    else if (id === 'next') this.mapZone = this.mapZone >= 3 ? 1 : this.mapZone + 1;
+    else if (id === 'prev') this.mapZone = this.mapZone <= 1 ? 6 : this.mapZone - 1;
+    else if (id === 'next') this.mapZone = this.mapZone >= 6 ? 1 : this.mapZone + 1;
   },
   mapZoneHits() {
-    // tres paneles de zona en la vista general
-    const w = 130, h = 150, gap = 12, total = 3 * w + 2 * gap, x0 = (VW - total) / 2, y = 48;
-    return [1, 2, 3].map((lv, i) => ({ lv, x: x0 + i * (w + gap), y, w, h }));
+    const w = 100, h = 72, gap = 8, cols = 3;
+    const total = cols * w + (cols - 1) * gap, x0 = (VW - total) / 2;
+    return [1, 2, 3, 4, 5, 6].map((lv, i) => {
+      const row = Math.floor(i / cols), col = i % cols;
+      return { lv, x: x0 + col * (w + gap), y: 42 + row * (h + 10), w, h };
+    });
   },
   collectionButtons() {
     return [{ id: 'back', label: '← Volver', x: 12, y: VH - 24, w: 70, h: 16 }];
@@ -479,15 +551,18 @@ const Game = {
       const kid = room.id + ':' + idx;
       // los enemigos muertos no vuelven (salvo al descansar en un banco)
       if (ENEMY_TYPES.includes(o.type) && (this.killed.has(kid) || (window.GAME && window.GAME.noEnemies))) return;
-      const add = e => { e.kid = kid; e.day = !!o.day || room.theme !== 'night'; e.crystal = room.theme === 'crystal'; this.enemies.push(e); };
+      const add = e => { e.kid = kid; e.day = !!o.day || room.theme !== 'night'; e.crystal = room.theme === 'crystal' || room.theme === 'garden'; this.enemies.push(e); };
       if (o.type === 'walker') add(new Walker(x, y));
       else if (o.type === 'flyer') add(new Flyer(x, y));
       else if (o.type === 'shield') add(new Shielder(x, y));
       else if (o.type === 'turret') add(new Turret(x, y));
       else if (o.type === 'prisma') add(new Prisma(x, y));
       else if (o.type === 'moth') add(new Moth(x, y));
+      else if (o.type === 'gear') add(new Gear(x, y));
+      else if (o.type === 'spark') add(new Spark(x, y));
+      else if (o.type === 'sprout') add(new Sprout(x, y));
       else if (o.type === 'switch') this.props.push(new CrystalSwitch(x, y));
-      else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = o.boss === 'heraldo' ? new Herald(x, y, room) : o.boss === 'oraculo' ? new Oracle(x, y, room) : new Boss(x, y, room);
+      else if (o.type === 'boss' && !this.beaten[o.boss]) this.boss = (typeof BOSS_FACTORY !== 'undefined' && BOSS_FACTORY[o.boss]) ? BOSS_FACTORY[o.boss](x, y, room) : new Boss(x, y, room);
       else if (o.type === 'celeste') { if (this.beaten.heraldo && !this.secrets.has('celeste')) this.objs.push(this.makePickup(o.type, x, y)); }
       else if (o.type === 'cargado') { if (this.beaten.oraculo && !this.secrets.has('cargado')) this.objs.push(this.makePickup(o.type, x, y)); }
       else if (PICKUPS[o.type] && !this.secrets.has(o.type)) this.objs.push(this.makePickup(o.type, x, y));
@@ -550,22 +625,24 @@ const Game = {
     this.player.invulnT = 0;
     this.syncDoors();
     const key = b && b.key;
-    if (key === 'oraculo') {
-      this.state = 'levelclear'; this.clearT = 0; this.clearLevel = 3;
-      if (!this.secrets.has('cargado')) {
-        const o = this.room.objs.find(o => o.type === 'cargado');
-        const x = o ? this.room.px + o.tx * TILE : (b.cx || this.player.cx);
-        const y = o ? this.room.py + o.ty * TILE : (b.cy || this.player.cy);
-        this.objs.push(this.makePickup('cargado', x, y));
-      }
+    const MAIN = { guardian: 1, heraldo: 2, oraculo: 3, forjador: 4, tempestad: 5, raiz: 6 };
+    if (key === 'ecos') {
+      this.state = 'levelclear'; this.clearT = 0; this.clearLevel = 7;
       const cur = Save.load() || { v: 1 };
       Save.write(Object.assign(cur, { v: 1, completed: true, beaten: Object.assign({}, cur.beaten || {}, this.beaten), secrets: [...this.secrets], playTime: this.playTime }));
-    } else {
-      this.state = 'levelclear'; this.clearT = 0; this.clearLevel = key === 'heraldo' ? 2 : 1;
-      if (key === 'heraldo' && !this.secrets.has('celeste')) {
-        const o = this.room.objs.find(o => o.type === 'celeste');
-        if (o) this.objs.push(this.makePickup('celeste', this.room.px + o.tx * TILE, this.room.py + o.ty * TILE));
-      }
+      return;
+    }
+    if (!MAIN[key]) return;
+    this.state = 'levelclear'; this.clearT = 0; this.clearLevel = MAIN[key];
+    if (key === 'oraculo' && !this.secrets.has('cargado')) {
+      const o = this.room.objs.find(o => o.type === 'cargado');
+      const x = o ? this.room.px + o.tx * TILE : (b.cx || this.player.cx);
+      const y = o ? this.room.py + o.ty * TILE : (b.cy || this.player.cy);
+      this.objs.push(this.makePickup('cargado', x, y));
+    }
+    if (key === 'heraldo' && !this.secrets.has('celeste')) {
+      const o = this.room.objs.find(o => o.type === 'celeste');
+      if (o) this.objs.push(this.makePickup('celeste', this.room.px + o.tx * TILE, this.room.py + o.ty * TILE));
     }
   },
   startCredits() { this.state = 'credits'; this.creditsT = 0; this.creditsPage = 0; FX.clear(); },
@@ -577,7 +654,7 @@ const Game = {
     const b = this.boss;
     if (b && b.state !== 'dormant' && b.state !== 'dying' && !b.dead) return 'boss' + this.level;
     if (this.slowT > 0 || (b && b.state === 'dying')) return null;
-    return ({ 1: 'cave', 2: 'dawn', 3: 'crystal' })[this.level] || 'cave';
+    return ({ 1: 'cave', 2: 'dawn', 3: 'crystal', 4: 'forge', 5: 'storm', 6: 'garden', 7: 'final' })[this.level] || 'cave';
   },
   playerDied() { this.state = 'dying'; this.deadT = 0; FX.shake(6, 0.5); },
   toast(text, t) { this.toasts.push({ text, t: 0, life: t || 2.5 }); if (this.toasts.length > 3) this.toasts.shift(); },
@@ -609,13 +686,20 @@ const Game = {
     if (this.state === 'levelclear') {
       this.clearT += dt; FX.update(dt);
       if ((this.clearT > 1.5 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.clearT > 6) {
-        if (this.clearLevel === 3) {
-          if (this.secrets.has('cargado')) this.startCredits();
-          else { this.state = 'play'; this.toast('Recoge el Sable Cargado en la arena', 4); }
-        } else {
-          this.state = 'play';
-          this.toast(this.clearLevel === 2 ? 'Recoge la pluma del Heraldo. Al este: Templo de Cristal' : 'Se ha abierto un camino al este: Cumbres del Alba', 4);
+        if (this.clearLevel === 7) { this.startCredits(); return; }
+        if (this.clearLevel === 3 && !this.secrets.has('cargado')) {
+          this.state = 'play'; this.toast('Recoge el Sable Cargado en la arena', 4); return;
         }
+        this.state = 'play';
+        const next = {
+          1: 'Se ha abierto un camino al este: Cumbres del Alba',
+          2: 'Recoge la pluma del Heraldo. Al este: Templo de Cristal',
+          3: 'Al este: Forja de Engranajes',
+          4: 'Al este: Techos de la Tormenta',
+          5: 'Al este: Jardín de Luz',
+          6: 'Al este: Abismo Carmesí — el final',
+        };
+        this.toast(next[this.clearLevel] || 'Continúa al este', 4);
       }
       return;
     }
@@ -623,8 +707,8 @@ const Game = {
       this.abilityT += dt; FX.update(dt);
       if ((this.abilityT > 1.2 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.abilityT > 8) {
         this.player.jumpBuf = 0;
-        if (this.abilityKey === 'cargado') this.startCredits();
-        else this.state = 'play';
+        this.state = 'play';
+        if (this.abilityKey === 'cargado') this.toast('Al este se abre la Forja de Engranajes', 4);
       }
       return;
     }
@@ -647,9 +731,9 @@ const Game = {
     if (this.state === 'map') {
       if (Input.pressed('pause')) { if (this.mapZone) this.mapZone = 0; else this.state = 'pause'; }
       else if (Input.pressed('left') || Input.pressed('up')) {
-        if (this.mapZone) this.mapZone = this.mapZone <= 1 ? 3 : this.mapZone - 1;
+        if (this.mapZone) this.mapZone = this.mapZone <= 1 ? 6 : this.mapZone - 1;
       } else if (Input.pressed('right') || Input.pressed('down')) {
-        if (this.mapZone) this.mapZone = this.mapZone >= 3 ? 1 : this.mapZone + 1;
+        if (this.mapZone) this.mapZone = this.mapZone >= 6 ? 1 : this.mapZone + 1;
         else this.mapZone = 1;
       } else if (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) {
         if (this.mapZone === 0) this.mapZone = 1; else this.mapZone = 0;
@@ -714,7 +798,7 @@ const Game = {
         o.taken = true; this.secrets.add(o.type);
         if (pk.hp) { p.maxHp++; p.hp = p.maxHp; }
         this.applyUpgrades();
-        if (o.type === 'cristal' || o.type === 'vasija' || o.type === 'orbe') p.soul = 99;
+        if ((o.type === 'cristal' || o.type === 'cristal2' || o.type === 'cristal3') || (o.type === 'vasija' || o.type === 'vasija2') || (o.type === 'orbe' || o.type === 'orbe2' || o.type === 'orbe3')) p.soul = 99;
         FX.ring(o.x + 5, o.y + 6, pk.col, 44); FX.burst(o.x + 5, o.y + 6, 30, { colors: [pk.col, '#ffffff'], speed: 150, grav: 0 }); FX.stop(10);
         sfx('pickup'); this.flashHud = 0.6;
         if (pk.ability) { this.state = 'ability'; this.abilityT = 0; this.abilityKey = o.type; this.saveGame(); }
@@ -786,6 +870,18 @@ const Game = {
     sctx.restore();
   },
 
+  drawThemeBg(r, cx, cy, cols, accent, spar) {
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
+    g.addColorStop(0, cols[0]); g.addColorStop(1, cols[1]);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = accent;
+    for (let i = 0; i < 22; i++) {
+      const px = ((i * 97 + Math.floor(this.t * 18) - cx * 0.05) % VW + VW) % VW;
+      const py = 18 + (i * 53 + Math.floor(cy * 0.03)) % Math.max(1, VH - 36);
+      ctx.globalAlpha = spar; ctx.fillRect(px, py, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  },
   drawDaySky(r, cx, cy) {
     const grd = ctx.createLinearGradient(0, 0, 0, VH);
     grd.addColorStop(0, '#4aa8f0'); grd.addColorStop(0.45, '#aee0ff'); grd.addColorStop(0.75, '#ffe8c0'); grd.addColorStop(1, '#ffd090');
@@ -906,6 +1002,10 @@ const Game = {
   drawBackground(r, cx, cy) {
     if (r.theme === 'day') return this.drawDaySky(r, cx, cy);
     if (r.theme === 'crystal') return this.drawCrystalBg(r, cx, cy);
+    if (r.theme === 'forge') return this.drawThemeBg(r, cx, cy, ['#3a1810', '#1a0804'], '#ffb020', 0.12);
+    if (r.theme === 'storm') return this.drawThemeBg(r, cx, cy, ['#0c1830', '#040810'], '#7ad8ff', 0.14);
+    if (r.theme === 'garden') return this.drawThemeBg(r, cx, cy, ['#102418', '#06100a'], '#6fe080', 0.12);
+    if (r.theme === 'final') return this.drawThemeBg(r, cx, cy, ['#2a0810', '#0a0206'], '#ff3a5c', 0.16);
     const grd = ctx.createLinearGradient(0, 0, 0, VH);
     grd.addColorStop(0, r.bg[0]); grd.addColorStop(0.55, shade(r.bg[1], 1.15)); grd.addColorStop(1, r.bg[1]);
     ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
@@ -1004,7 +1104,7 @@ const Game = {
     ctx.restore();
     // viñeta
     const v = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.35, VW / 2, VH / 2, VH * 0.95);
-    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, r.theme === 'day' ? 'rgba(90,40,0,0.12)' : r.theme === 'crystal' ? 'rgba(60,80,160,0.12)' : 'rgba(0,0,0,0.55)');
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, r.theme === 'day' ? 'rgba(90,40,0,0.12)' : r.theme === 'crystal' ? 'rgba(60,80,160,0.12)' : r.theme === 'forge' ? 'rgba(90,40,0,0.18)' : r.theme === 'storm' ? 'rgba(20,40,90,0.16)' : r.theme === 'garden' ? 'rgba(20,60,30,0.14)' : r.theme === 'final' ? 'rgba(80,10,20,0.2)' : 'rgba(0,0,0,0.55)');
     ctx.fillStyle = v; ctx.fillRect(0, 0, VW, VH);
     if (this.fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.fade * 2)})`; ctx.fillRect(0, 0, VW, VH); }
     if (this.state === 'dying') { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, this.deadT / 1.2)})`; ctx.fillRect(0, 0, VW, VH); }
@@ -1034,7 +1134,7 @@ const Game = {
         ctx.fillRect(x + o.w / 2 - 3, y - 24 + Math.round(Math.sin(this.t * 5)), 7, 1);
         o.prompt = true;
       } else o.prompt = false;
-    } else if (o.type === 'vasija') {
+    } else if ((o.type === 'vasija' || o.type === 'vasija2')) {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       ctx.fillStyle = 'rgba(122,216,255,0.4)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#16203a'; ctx.fillRect(x - 2, y + 1 + b, 14, 13); ctx.fillRect(x + 1, y - 3 + b, 8, 5);
@@ -1055,18 +1155,18 @@ const Game = {
       ctx.fillStyle = '#ff3a5c'; ctx.fillRect(x - 1, y + 1 + b, 12, 2);
       ctx.fillStyle = '#ffd28a'; ctx.fillRect(x + 8, y - 2 + b, 4, 8);
       ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 9, y - 1 + b, 2, 4);
-    } else if (o.type === 'orbe') {
+    } else if ((o.type === 'orbe' || o.type === 'orbe2' || o.type === 'orbe3')) {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       ctx.fillStyle = 'rgba(255,90,120,0.4)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#3a0010'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 7, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ff5a78'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 3, y + 3 + b, 2, 2);
-    } else if (o.type === 'shard' || o.type === 'shard2' || o.type === 'shard3' || o.type === 'shard4' || o.type === 'shard5') {
+    } else if (/^shard\d*$/.test(o.type) || o.type === 'shard') {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       if (this.room.theme !== 'night') { ctx.fillStyle = 'rgba(22,32,58,0.5)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 10, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = 'rgba(191,246,255,0.3)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 9, 0, Math.PI * 2); ctx.fill();
       drawMask(ctx, x, y + b, 10, 12, true, '#ffffff');
-    } else if (o.type === 'cristal') {
+    } else if ((o.type === 'cristal' || o.type === 'cristal2' || o.type === 'cristal3')) {
       const b = Math.round(Math.sin(this.t * 3) * 2);
       ctx.fillStyle = 'rgba(255,176,32,0.35)'; ctx.beginPath(); ctx.arc(x + 5, y + 6 + b, 11, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#241610'; ctx.beginPath(); ctx.moveTo(x + 5, y - 3 + b); ctx.lineTo(x + 12, y + 6 + b); ctx.lineTo(x + 5, y + 15 + b); ctx.lineTo(x - 2, y + 6 + b); ctx.fill();
@@ -1355,7 +1455,7 @@ const Game = {
   },
   drawMapOverview(g) {
     const zones = this.mapZoneHits();
-    const themes = { 1: '#6a4a8a', 2: '#ffb020', 3: '#7ad8ff' };
+    const themes = { 1: '#6a4a8a', 2: '#ffb020', 3: '#7ad8ff', 4: '#c08030', 5: '#5080c0', 6: '#3a8a40' };
     zones.forEach(z => {
       const rooms = World.rooms.filter(r => r.level === z.lv);
       const vis = rooms.filter(r => r.visited).length;
@@ -1539,7 +1639,7 @@ const Game = {
     };
     g.fillText(msgs[L] || msgs[1], VW / 2, 128);
     g.font = 'italic 11px Georgia, serif'; g.fillStyle = '#aee0ff';
-    if (L < 3) g.fillText('Siguiente: Nivel ' + (L + 1) + ' — ' + LEVEL_NAMES[L + 1], VW / 2, 148);
+    if (L < 7 && LEVEL_NAMES[L + 1]) g.fillText('Siguiente: Nivel ' + (L + 1) + ' — ' + LEVEL_NAMES[L + 1], VW / 2, 148);
     else g.fillText('El templo vuelve a la luz.', VW / 2, 148);
     if (this.clearT > 1.5 && Math.floor(this.clearT * 2) % 2 === 0) {
       g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.fillText(IS_TOUCH() ? 'Toca para continuar' : 'Pulsa ENTER para continuar', VW / 2, 190);

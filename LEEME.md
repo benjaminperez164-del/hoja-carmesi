@@ -52,7 +52,7 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 - Efectos: combo de sable (3 variantes), tajo aéreo/abajo, dash, salto, doble salto, salto de pared, aterrizaje,
   golpe y muerte de enemigos, daño, curación, banco, rebote, objetos, puertas, avisos de ataque de los jefes,
   muerte de jefe, menús.
-- Música chiptune: tema de título, un tema por zona (cueva oscura, amanecer, templo de cristal), tema de jefe por nivel,
+- Música chiptune: tema de título, un tema por zona (cueva, amanecer, cristal, forja, tormenta, jardín, final), tema de jefe por nivel,
   fanfarria de nivel completado y de victoria. Fundido cruzado al cambiar de zona o empezar un combate.
 - El audio se activa con el primer toque/tecla (requisito de iOS Safari). Botón «Sonido» en título y pausa,
   altavoz ♪ en móvil y tecla M; la preferencia se guarda en `localStorage` (`hojaCarmesi.audio`).
@@ -68,7 +68,7 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 - Se guarda en `localStorage` (clave `hojaCarmesi.save.v1`) al sentarse en un banco: nivel, banco, máscaras máximas,
   secretos, jefes derrotados, salas visitadas y tiempo (incluye Nivel 3 y el Salto Celeste).
 - Partidas antiguas: si ya habías vencido al Heraldo del Alba, al pulsar «Continuar» recibes el Salto Celeste automáticamente.
-- Si ya habías vencido al Oráculo Prismático, recibes el Sable Cargado automáticamente.
+- Si ya habías vencido al Oráculo Prismático, recibes el Sable Cargado automáticamente y puedes seguir a la Forja (los créditos llegan tras Ecos del Abismo).
 - En el título aparece «Continuar» si hay partida guardada, y «Nueva partida» (pide confirmación si ya hay una guardada).
   Se elige con ↑↓/←→ + Enter/Z, o tocando.
 
@@ -134,3 +134,38 @@ La entrada está al nivel de la arena y los ataques cubren toda la sala.
   - N3 Atrio de Cristal → Fragmento de máscara
 - Tras la victoria final: pantallas de **créditos** (toca/ENTER para avanzar) y vuelta al título.
 - Al entrar por primera vez en cada nivel aparece una **tarjeta de zona** (nombre + frase) que se desvanece.
+
+## Expansión · Zonas 1–7 (v10)
+
+### Nivel 1 · Reino Hueco (ampliado)
+Tras la Galería Suspendida: **Vía de las Sombras** → miniboss **Umbra del Foso** → **Puente del Eco** → Cámara del Guardián (layout del jefe sin cambios).
+Secretos nuevos: **Hueco Umbrío** (Salto Celeste), sello de **Sable Cargado** en el Puente del Eco.
+
+### Nivel 2 · Cumbres del Alba (ampliado)
+Tras Terrazas: **Cresta Ventosa** → miniboss **Aureola Alada** → **Pasaje del Alba** → Santuario del Sol.
+Secretos: **Nido del Viento**, sello cargado en Pasaje del Alba.
+
+### Nivel 3 · Templo de Cristal (ampliado)
+Tras Antecámara: **Nave de Cristal** → miniboss **Centinela de Cuarzo** → **Umbral de Luz** → Corazón del Templo.
+Secretos: **Cámara de la Lente**, sello cargado en Umbral de Luz.
+Tras el Oráculo ya no hay créditos: se abre el camino a la Forja.
+
+### Nivel 4 · Forja de Engranajes
+Atrio → Sala de Ruedas → Pozo de Escoria → miniboss **Capataz de Bronce** → Puente de Magma → Antesala → **Forjador de Engranajes**.
+Enemigos: Engranaje + tipos clásicos. Tema industrial / magma.
+
+### Nivel 5 · Techos de la Tormenta
+Mirador → Bosque de Antenas → Pozo de Nubes → miniboss **Nube Viviente** → Puente Relámpago → Antesala → **Tempestad Alada**.
+Enemigos: Centella. Tema tormentoso / azoteas.
+
+### Nivel 6 · Jardín de Luz
+Claro Subterráneo → Setos → Pozo Verde → miniboss **Espina Mayor** → Puente de Raíces → Antesala → **Raíz Primigenia**.
+Enemigos: Brote. Tema jardín subterráneo luminoso.
+
+### Arena final · Abismo Carmesí
+Tras la Raíz: jefe final **Ecos del Abismo** (combina motivos de forja, tormenta y jardín). Derrotarlo → créditos.
+
+### Guardado
+- `ver: 3`. Quienes terminaron el N3 con `completed` pueden **Continuar** hacia la Forja (se limpia el flag hasta vencer a Ecos).
+- Mapa del mundo: 6 zonas. Colección ampliada con secretos y jefes nuevos.
+

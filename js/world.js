@@ -106,7 +106,45 @@ const ROOM_DEFS = [
       b.obj('flyer', 14, 8); b.obj('flyer', 21, 6); b.obj('flyer', 28, 9);
       b.obj('sign', 5, 6, { text: '↓+Ataque en el aire: rebote' });
     } },
-  { id: 'guardian', name: 'Cámara del Guardián', ox: 130, oy: -17, w: 30, h: 17,
+
+  // ---- Expansión N1 (entre Galería y Guardián) ----
+  { id: 'viaSombra', name: 'Vía de las Sombras', ox: 130, oy: -17, w: 34, h: 17,
+    bg: ['#1a1228', '#080610'], tint: '#3a2850',
+    build(b) {
+      b.box(); b.rect(0, 15, 34, 2); b.clear(0, 8, 1, 4); b.clear(33, 8, 1, 4);
+      b.spikes(8, 15, 6); b.spikes(20, 15, 5);
+      b.plat(10, 11, 4); b.plat(18, 9, 4); b.plat(26, 11, 3);
+      b.clear(14, 0, 3, 1);
+      b.obj('walker', 12, 15); b.obj('flyer', 20, 5); b.obj('walker', 28, 15);
+      b.obj('sign', 4, 15, { text: 'Más allá aguarda una sombra sin rostro' });
+    } },
+  { id: 'huecoSombra', name: 'Hueco Umbrío', ox: 140, oy: -25, w: 16, h: 8, secret: true,
+    bg: ['#14102a', '#06040e'], tint: '#2a2048',
+    build(b) {
+      b.rect(0, 0, 16, 1); b.rect(0, 0, 1, 8); b.rect(15, 0, 1, 8);
+      b.obj('shard6', 8, 8);
+    } },
+  { id: 'arenaUmbra', name: 'Arena Umbría', ox: 164, oy: -17, w: 32, h: 17, boss: true, floorRow: 15,
+    bg: ['#1c0c24', '#08040e'], tint: '#4a2060',
+    build(b) {
+      b.box(); b.rect(0, 15, 32, 2); b.clear(0, 8, 1, 4);
+      b.door(0, 8, 1, 4);
+      b.clear(31, 8, 1, 4); b.exitDoor(31, 8, 1, 4, 'umbra');
+      b.obj('boss', 16, 15, { boss: 'umbra' });
+      b.obj('bench', 4, 15);
+    } },
+  { id: 'puenteEco', name: 'Puente del Eco', ox: 196, oy: -17, w: 34, h: 17,
+    bg: ['#22141c', '#0c060a'], tint: '#5a3040',
+    build(b) {
+      b.box(); b.rect(0, 15, 34, 2); b.clear(0, 8, 1, 4); b.clear(33, 8, 1, 4);
+      b.spikes(6, 15, 8); b.spikes(20, 15, 6);
+      b.plat(8, 10, 3); b.plat(16, 8, 4); b.plat(24, 10, 3);
+      b.chargeseal(28, 3, 1, 4, 'selloEco'); b.rect(29, 2, 3, 1); b.rect(29, 6, 3, 1); b.rect(31, 3, 1, 3);
+      b.obj('shard7', 30, 6);
+      b.obj('flyer', 12, 6); b.obj('walker', 22, 15);
+      b.obj('sign', 3, 15, { text: 'El Guardián espera al este' });
+    } },
+  { id: 'guardian', name: 'Cámara del Guardián', ox: 230, oy: -17, w: 30, h: 17,
     bg: ['#2a0d14', '#0d0306'], tint: '#6a1c2c', boss: true,
     build(b) {
       b.box(); b.rect(0, 15, 30, 2); b.clear(0, 8, 1, 4);
@@ -123,7 +161,7 @@ const ROOM_DEFS = [
       b.obj('shard2', 10.5, 8);
     } },
   // =================== NIVEL 2: CUMBRES DEL ALBA ===================
-  { id: 'mirador', name: 'Mirador del Alba', ox: 160, oy: -17, w: 30, h: 17, level: 2, theme: 'day',
+  { id: 'mirador', name: 'Mirador del Alba', ox: 260, oy: -17, w: 30, h: 17, level: 2, theme: 'day',
     build(b) {
       b.rect(0, 15, 30, 2); b.rect(0, 0, 1, 11);
       b.rect(20, 9, 10, 8); b.rect(29, 0, 1, 5);          // acantilado y salida (filas 5-8)
@@ -137,7 +175,7 @@ const ROOM_DEFS = [
       b.obj('shield', 25, 9);
       b.obj('sign', 11, 15, { text: 'Escudero: golpéalo por detrás o desde arriba' });
     } },
-  { id: 'puente', name: 'Puente de los Vientos', ox: 190, oy: -17, w: 44, h: 17, level: 2, theme: 'day',
+  { id: 'puente', name: 'Puente de los Vientos', ox: 290, oy: -17, w: 44, h: 17, level: 2, theme: 'day',
     build(b) {
       b.rect(0, 0, 1, 5); b.rect(0, 9, 5, 8);
       b.spikes(5, 15, 34); b.rect(5, 16, 34, 1);            // zarzas: rebota con el tajo abajo
@@ -149,7 +187,7 @@ const ROOM_DEFS = [
       b.obj('flyer', 30, 5, { day: true });
       b.obj('sign', 2.5, 9, { text: 'Las losas agrietadas se derrumban' });
     } },
-  { id: 'cascadas', name: 'Cascadas Gemelas', ox: 234, oy: -34, w: 24, h: 34, level: 2, theme: 'day',
+  { id: 'cascadas', name: 'Cascadas Gemelas', ox: 334, oy: -34, w: 24, h: 34, level: 2, theme: 'day',
     build(b) {
       b.rect(0, 0, 1, 22); b.breakwall(0, 3, 1, 4, 'muroCascada');   // muro agrietado secreto
       b.rect(0, 26, 5, 8);
@@ -163,7 +201,7 @@ const ROOM_DEFS = [
       b.obj('turret', 21, 7);
       b.obj('flyer', 17, 19, { day: true });
     } },
-  { id: 'nido', name: 'Nido Oculto', ox: 214, oy: -34, w: 20, h: 16, level: 2, theme: 'day', secret: true,
+  { id: 'nido', name: 'Nido Oculto', ox: 314, oy: -34, w: 20, h: 16, level: 2, theme: 'day', secret: true,
     build(b) {
       b.rect(0, 0, 20, 1); b.rect(0, 0, 1, 16);
       b.rect(19, 0, 1, 3); b.rect(19, 7, 1, 9);
@@ -174,7 +212,7 @@ const ROOM_DEFS = [
       b.obj('cristal', 2.5, 10);
       b.obj('flyer', 9, 5, { day: true });
     } },
-  { id: 'jardin', name: 'Jardín Colgante', ox: 258, oy: -34, w: 40, h: 17, level: 2, theme: 'day',
+  { id: 'jardin', name: 'Jardín Colgante', ox: 358, oy: -34, w: 40, h: 17, level: 2, theme: 'day',
     build(b) {
       b.rect(0, 0, 1, 3); b.rect(0, 7, 5, 10);
       b.rect(0, 15, 40, 2); b.spikes(12, 15, 3); b.spikes(23, 15, 3);
@@ -186,7 +224,7 @@ const ROOM_DEFS = [
       b.obj('turret', 20, 9);
       b.obj('flyer', 10, 5, { day: true });
     } },
-  { id: 'terrazas', name: 'Terrazas del Viento', ox: 298, oy: -34, w: 30, h: 17, level: 2, theme: 'day',
+  { id: 'terrazas', name: 'Terrazas del Viento', ox: 398, oy: -34, w: 30, h: 17, level: 2, theme: 'day',
     build(b) {
       b.rect(0, 0, 1, 3); b.rect(0, 7, 7, 10);
       b.spikes(7, 15, 14); b.rect(7, 16, 14, 1);
@@ -197,7 +235,40 @@ const ROOM_DEFS = [
       b.obj('sign', 3, 7, { text: 'Las corrientes te elevan y recargan el dash' });
     } },
   // Sala del jefe sin refugios: la entrada está a ras del suelo de la arena (sin repisa elevada)
-  { id: 'sol', name: 'Santuario del Sol', ox: 328, oy: -34, w: 32, h: 17, level: 2, theme: 'day', boss: true, floorRow: 12,
+  
+  // ---- Expansión N2 (antes del Santuario del Sol) ----
+  { id: 'cresta', name: 'Cresta Ventosa', ox: 428, oy: -34, w: 32, h: 17, level: 2, theme: 'day',
+    build(b) {
+      b.rect(0, 15, 32, 2); b.rect(0, 0, 1, 8); b.rect(31, 0, 1, 5);
+      b.wind(8, 6, 3, 9); b.mover(14, 12, 3, 22, 12, 4);
+      b.fall(4, 0, 2, 15); b.fall(26, 0, 2, 15);
+      b.clear(10, 0, 3, 1);
+      b.obj('bench', 6, 15);
+      b.obj('flyer', 16, 5, { day: true }); b.obj('shield', 24, 15);
+      b.obj('sign', 10, 15, { text: 'Una aureola dorada guarda el camino' });
+    } },
+  { id: 'nidoAlto', name: 'Nido del Viento', ox: 436, oy: -42, w: 14, h: 8, level: 2, theme: 'day', secret: true,
+    build(b) {
+      b.rect(0, 0, 14, 1); b.rect(0, 0, 1, 8); b.rect(13, 0, 1, 8);
+      b.obj('orbe2', 7, 8);
+    } },
+  { id: 'arenaAureo', name: 'Arena Áurea', ox: 460, oy: -34, w: 32, h: 17, level: 2, theme: 'day', boss: true, floorRow: 15,
+    build(b) {
+      b.rect(0, 15, 32, 2); b.rect(0, 0, 1, 8); b.rect(31, 0, 1, 8);
+      b.door(0, 8, 1, 4);
+      b.clear(31, 8, 1, 4); b.exitDoor(31, 8, 1, 4, 'aureola');
+      b.obj('boss', 16, 15, { boss: 'aureola' });
+      b.obj('bench', 4, 15);
+    } },
+  { id: 'pasajeSol', name: 'Pasaje del Alba', ox: 492, oy: -34, w: 32, h: 17, level: 2, theme: 'day',
+    build(b) {
+      b.rect(0, 15, 32, 2); b.rect(0, 0, 1, 8); b.rect(31, 0, 1, 8);
+      b.clear(0, 8, 1, 4); b.clear(31, 8, 1, 4);
+      b.crumble(8, 10, 3); b.crumble(14, 9, 3); b.plat(20, 10, 4);
+      b.chargeseal(26, 4, 1, 4, 'selloAlba2'); b.rect(27, 3, 3, 1); b.rect(27, 7, 3, 1); b.obj('shard8', 28.5, 7);
+      b.obj('turret', 18, 10); b.obj('walker', 10, 15, { day: true });
+    } },
+  { id: 'sol', name: 'Santuario del Sol', ox: 524, oy: -34, w: 32, h: 17, level: 2, theme: 'day', boss: true, floorRow: 12,
     build(b) {
       b.rect(0, 0, 1, 8);
       b.rect(0, 12, 32, 5); b.rect(31, 0, 1, 8);
@@ -208,7 +279,7 @@ const ROOM_DEFS = [
       b.obj('celeste', 16, 12);
     } },
   // =================== NIVEL 3: TEMPLO DE CRISTAL ===================
-  { id: 'atrio', name: 'Atrio de Cristal', ox: 360, oy: -34, w: 30, h: 17, level: 3, theme: 'crystal',
+  { id: 'atrio', name: 'Atrio de Cristal', ox: 556, oy: -34, w: 30, h: 17, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 30, 2); b.rect(0, 2, 1, 6);
       b.rect(0, 12, 13, 5);
@@ -222,7 +293,7 @@ const ROOM_DEFS = [
       b.obj('sign', 9, 12, { text: 'Salto Celeste: pulsa SALTAR otra vez en el aire' });
       b.obj('walker', 25, 12);
     } },
-  { id: 'haces', name: 'Galería de los Haces', ox: 390, oy: -34, w: 40, h: 17, level: 3, theme: 'crystal',
+  { id: 'haces', name: 'Galería de los Haces', ox: 586, oy: -34, w: 40, h: 17, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 40, 2); b.rect(0, 2, 1, 6); b.rect(39, 2, 1, 6);
       b.rect(0, 12, 40, 5);
@@ -231,7 +302,7 @@ const ROOM_DEFS = [
       b.obj('prisma', 34, 5);
       b.obj('sign', 4, 12, { text: 'Los haces parpadean antes de encenderse' });
     } },
-  { id: 'pozoPrisma', name: 'Pozo Prismático', ox: 430, oy: -51, w: 22, h: 34, level: 3, theme: 'crystal',
+  { id: 'pozoPrisma', name: 'Pozo Prismático', ox: 626, oy: -51, w: 22, h: 34, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 22, 1);
       b.rect(0, 1, 1, 24); b.breakwall(0, 10, 1, 4, 'muroCristal');   // muro de cristal agrietado (secreto)
@@ -244,7 +315,7 @@ const ROOM_DEFS = [
       b.obj('moth', 11, 5);
       b.obj('sign', 3, 29, { text: '↑ Encadena saltos: el Salto Celeste llega más alto' });
     } },
-  { id: 'relicario', name: 'Relicario de Luz', ox: 412, oy: -51, w: 18, h: 16, level: 3, theme: 'crystal', secret: true,
+  { id: 'relicario', name: 'Relicario de Luz', ox: 608, oy: -51, w: 18, h: 16, level: 3, theme: 'crystal', secret: true,
     build(b) {
       b.rect(0, 0, 18, 1); b.rect(0, 0, 1, 16); b.rect(17, 0, 1, 10); b.rect(17, 14, 1, 2);
       b.rect(0, 14, 18, 2); b.spikes(4, 13, 9);
@@ -252,7 +323,7 @@ const ROOM_DEFS = [
       b.blink(9, 10, 2, 2.6, 0); b.blink(5, 8, 2, 2.6, 1.3);
       b.obj('shard3', 2.5, 10);
     } },
-  { id: 'puenteFase', name: 'Puente de las Fases', ox: 452, oy: -51, w: 40, h: 17, level: 3, theme: 'crystal',
+  { id: 'puenteFase', name: 'Puente de las Fases', ox: 648, oy: -51, w: 40, h: 17, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 40, 1); b.rect(0, 1, 1, 2);
       b.rect(0, 7, 5, 10);
@@ -269,7 +340,7 @@ const ROOM_DEFS = [
       b.obj('prisma', 21, 4);
       b.obj('sign', 2.5, 7, { text: 'Golpea el cristal para alternar los bloques' });
     } },
-  { id: 'claustro', name: 'Claustro de Cuarzo', ox: 492, oy: -51, w: 36, h: 17, level: 3, theme: 'crystal',
+  { id: 'claustro', name: 'Claustro de Cuarzo', ox: 688, oy: -51, w: 36, h: 17, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 36, 1); b.rect(0, 1, 1, 2);
       b.rect(0, 7, 5, 10);
@@ -280,7 +351,7 @@ const ROOM_DEFS = [
       b.obj('moth', 31, 4);
       b.obj('sign', 2.5, 7, { text: '↓+Ataque sobre las púas de cristal' });
     } },
-  { id: 'antecamara', name: 'Antecámara de Luz', ox: 528, oy: -51, w: 24, h: 17, level: 3, theme: 'crystal',
+  { id: 'antecamara', name: 'Antecámara de Luz', ox: 724, oy: -51, w: 24, h: 17, level: 3, theme: 'crystal',
     build(b) {
       b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 2);
       b.rect(0, 7, 6, 10); b.rect(6, 9, 3, 8);
@@ -288,11 +359,48 @@ const ROOM_DEFS = [
       b.obj('bench', 15, 12);
       b.obj('sign', 11, 12, { text: 'Más allá late el corazón del templo' });
     } },
-  { id: 'corazon', name: 'Corazón del Templo', ox: 552, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal', boss: true, floorRow: 12,
+  
+  // ---- Expansión N3 (antes del Corazón) ----
+  { id: 'naveCristal', name: 'Nave de Cristal', ox: 748, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 32, 1); b.rect(0, 1, 1, 2); b.rect(31, 1, 1, 2);
+      b.rect(0, 12, 32, 5);
+      b.blink(8, 9, 3, 2.8, 0); b.blink(16, 8, 3, 2.8, 1.4);
+      b.beam(12, 2, 9, 'v', 2.6, 0);
+      b.clear(10, 0, 3, 1);
+      b.obj('bench', 4, 12);
+      b.obj('prisma', 22, 5); b.obj('moth', 14, 4);
+      b.obj('sign', 8, 12, { text: 'Un centinela de cuarzo no parpadea' });
+    } },
+  { id: 'camaraLente', name: 'Cámara de la Lente', ox: 754, oy: -59, w: 14, h: 8, level: 3, theme: 'crystal', secret: true,
+    build(b) {
+      b.rect(0, 0, 14, 1); b.rect(0, 0, 1, 8); b.rect(13, 0, 1, 8);
+      b.obj('shard9', 7, 8);
+    } },
+  { id: 'arenaCentinela', name: 'Arena del Centinela', ox: 780, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal', boss: true, floorRow: 12,
+    build(b) {
+      b.rect(0, 0, 32, 1); b.rect(0, 1, 1, 7); b.rect(31, 1, 1, 7);
+      b.rect(0, 12, 32, 5);
+      b.door(0, 8, 1, 4);
+      b.clear(31, 8, 1, 4); b.exitDoor(31, 8, 1, 4, 'centinela');
+      b.obj('boss', 16, 12, { boss: 'centinela' });
+      b.obj('bench', 5, 12);
+    } },
+  { id: 'umbralLuz', name: 'Umbral de Luz', ox: 812, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal',
+    build(b) {
+      b.rect(0, 0, 32, 1); b.rect(0, 1, 1, 2); b.rect(31, 1, 1, 7);
+      b.rect(0, 12, 32, 5); b.clear(0, 8, 1, 4);
+      b.phase(10, 8, 2, 1, 'a'); b.phase(16, 8, 2, 1, 'b');
+      b.obj('switch', 13.5, 11.4);
+      b.chargeseal(24, 4, 1, 4, 'selloLuz'); b.rect(25, 3, 4, 1); b.rect(25, 7, 4, 1); b.obj('cristal2', 27, 7);
+      b.obj('walker', 22, 12); b.obj('sign', 4, 12, { text: 'El corazón del templo late al este' });
+    } },
+  { id: 'corazon', name: 'Corazón del Templo', ox: 844, oy: -51, w: 32, h: 17, level: 3, theme: 'crystal', boss: true, floorRow: 12,
     build(b) {
       b.rect(0, 0, 32, 1); b.rect(0, 1, 1, 7);
-      b.rect(0, 12, 32, 5); b.rect(31, 0, 1, 17);
+      b.rect(0, 12, 32, 5); b.rect(31, 0, 1, 7);
       b.door(0, 8, 1, 4);
+      b.clear(31, 8, 1, 4); b.exitDoor(31, 8, 1, 4, 'oraculo');
       b.plat(8, 8, 4); b.plat(20, 8, 4);
       b.obj('boss', 16, 12, { boss: 'oraculo' });
       b.obj('cargado', 16, 12);

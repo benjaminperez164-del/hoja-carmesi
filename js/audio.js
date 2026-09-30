@@ -119,6 +119,19 @@ const Sound = (() => {
     crystal: { bpm: 96, root: 40, chords: ['0M', '5M', '9m', '7M'], bass: 'x.....o...x.....', arpRate: 1, arpWave: 'sine', arpOct: 36, arpVol: 0.03,
       lead: '16 _ 11 _ 12 _ 16 _ | 17 _ _ 16 12 _ 9 _ | 16 _ 11 _ 12 _ 19 _ | 18 _ 16 _ 11 _ _ _', leadOct: 24, leadWave: 'triangle', leadVol: 0.07,
       drums: { k: 'x.........x.....', h: '..x...x...x...x.' } },
+    forge: { bpm: 100, root: 38, chords: ['0m', '-5M', '-3M', '-7m'], bass: 'x...o.x.x.f.o...', arpRate: 2, arpWave: 'square', arpOct: 12, arpVol: 0.016,
+      lead: '0 _ 3 _ 5 7 _ 5 | 8 _ 7 _ 5 _ 3 _ | 0 _ 5 _ 7 _ 10 _ | 8 _ 7 _ 5 _ _ _', leadOct: 24, leadWave: 'pulse', leadVol: 0.045,
+      drums: { k: 'x...x...x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' } },
+    storm: { bpm: 128, root: 42, chords: ['0m', '3M', '-2m', '5M'], bass: 'x.x...x.x.x...x.', arpRate: 1, arpWave: 'triangle', arpOct: 24, arpVol: 0.02,
+      lead: '12 _ 15 _ 19 _ 15 _ | 17 _ _ 15 12 _ 10 _ | 12 _ 15 _ 19 _ 22 _ | 20 _ 17 _ 15 _ _ _', leadOct: 12, leadWave: 'square', leadVol: 0.04,
+      drums: { k: 'x..x..x.x..x..x.', s: '....x...x...x...', h: 'xxxxxxxxxxxxxxxx' } },
+    garden: { bpm: 92, root: 45, chords: ['0M', '5M', '7m', '4M'], bass: 'x.....o...x.....', arpRate: 2, arpWave: 'sine', arpOct: 24, arpVol: 0.025,
+      lead: '7 _ 9 _ 12 _ 9 _ | 11 _ _ 9 7 _ 4 _ | 7 _ 9 _ 12 _ 16 _ | 14 _ 12 _ 9 _ _ _', leadOct: 12, leadWave: 'triangle', leadVol: 0.06,
+      drums: { k: 'x.........x.....', h: '..x...x...x...x.' } },
+    final: { bpm: 108, root: 36, chords: ['0m', '-4M', '3M', '-5m'], bass: 'x.x.o.x.x.x.o.x.', arpRate: 1, arpWave: 'sawtooth', arpOct: 24, arpVol: 0.012,
+      lead: '0 3 7 12 7 3 0 _ | 5 _ 8 _ 12 _ 15 _ | 0 3 7 12 15 12 7 _ | 19 _ _ 15 12 _ _ _', leadOct: 24, leadWave: 'pulse', leadVol: 0.05,
+      drums: { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.' } },
+
     boss1: { bpm: 140, root: 36, chords: ['0m', '-4M', '-2M', '-5M'], bass: 'x.x.o.x.x.x.o.x.', arpRate: 2, arpWave: 'square', arpOct: 24, arpVol: 0.014,
       lead: '0 0 3 0 5 0 7 5 | 8 _ 7 _ 5 _ 3 _ | 0 0 3 0 5 0 10 8 | 7 _ _ 11 12 _ _ _', leadOct: 24, leadWave: 'pulse', leadVol: 0.05,
       drums: { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.' } },
@@ -133,6 +146,10 @@ const Sound = (() => {
   };
   // variante del jefe 2: misma pieza del jefe 1, más aguda y rápida con otro timbre
   TRACKS.boss2 = Object.assign({}, TRACKS.boss1, { bpm: 148, root: 38, leadWave: 'square', arpWave: 'triangle', arpRate: 1 });
+  TRACKS.boss4 = Object.assign({}, TRACKS.boss1, { bpm: 136, root: 34, leadWave: 'sawtooth' });
+  TRACKS.boss5 = Object.assign({}, TRACKS.boss3, { bpm: 160, root: 42 });
+  TRACKS.boss6 = Object.assign({}, TRACKS.boss2, { bpm: 130, root: 40, leadWave: 'triangle' });
+  TRACKS.boss7 = Object.assign({}, TRACKS.boss3, { bpm: 168, root: 36, leadWave: 'pulse' });
   for (const k in TRACKS) TRACKS[k].mel = parse(TRACKS[k].lead);
 
   function scheduleStep(inst, step, t) {
