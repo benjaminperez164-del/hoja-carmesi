@@ -22,7 +22,7 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
 | ↓ + Saltar sobre plataforma fina | Bajar de la plataforma |
 | V / Shift (mantener) | Curar 1 máscara (gasta 1/3 de energía) |
 | ↑ / W en un banco | Sentarse: guardar partida, curar y revivir enemigos |
-| Enter / Esc / P | Pausa |
+| Enter / Esc / P | Pausa (Mapa y Colección) |
 | M | Silenciar / activar sonido |
 | Mando | A saltar · X atacar · B/RB dash · Y/LB curar · Start pausa |
 
@@ -37,6 +37,12 @@ Todo el arte se dibuja por código (Canvas 2D, sin imágenes externas): siluetas
   pantalla completa: usa «Compartir → Añadir a pantalla de inicio» para jugar sin barras del navegador.
 - Para jugar desde el móvil, sirve la carpeta en tu red local (`python3 -m http.server 8765 --bind 0.0.0.0`)
   y abre `http://IP-DE-TU-PC:8765/` en el teléfono.
+
+## Pausa · Mapa · Colección
+- En pausa: **Reanudar**, **Mapa** y **Colección** (más el botón de sonido).
+- **Mapa del mundo**: zonas visitadas, salas (niebla si no las has visto), bancos, jefes y salidas entre niveles.
+  Solo lectura — no puedes viajar desde el mapa.
+- **Colección**: secretos/habilidades encontrados vs `???`, contador y jefes derrotados. Usa los datos del guardado actual.
 
 ## Sonido y música
 - Todo el audio se genera por código con la Web Audio API (composiciones originales, sin archivos de audio).

@@ -215,6 +215,21 @@ const PICKUPS = {
 };
 const SECRET_KEYS = ['shard', 'cristal', 'shard2', 'vasija', 'shard3'];
 const LEVEL_NAMES = { 1: 'Reino Hueco', 2: 'Cumbres del Alba', 3: 'Templo de Cristal' };
+const LEVEL_SHORT = { 1: 'Abismo', 2: 'Cumbres', 3: 'Templo' };
+// Entradas de la colección (solo lectura; usa secrets / beaten existentes)
+const COLLECTION = [
+  { key: 'shard', name: 'Fragmento de máscara', where: 'Cripta Olvidada · N1', col: '#ffffff' },
+  { key: 'cristal', name: 'Cristal del Alba', where: 'Nido Oculto · N2', col: '#ffb020' },
+  { key: 'shard2', name: 'Fragmento de máscara', where: 'Nicho Celeste · N1', col: '#ffffff' },
+  { key: 'vasija', name: 'Vasija de Energía', where: 'Jardín Colgante · N2', col: '#7ad8ff' },
+  { key: 'shard3', name: 'Fragmento de máscara', where: 'Relicario de Luz · N3', col: '#ffffff' },
+  { key: 'celeste', name: 'Salto Celeste', where: 'Heraldo del Alba · N2', col: '#9fe6ff', ability: true },
+];
+const BOSS_META = [
+  { key: 'guardian', name: 'Guardián Hueco', level: 1 },
+  { key: 'heraldo', name: 'Heraldo del Alba', level: 2 },
+  { key: 'oraculo', name: 'Oráculo Prismático', level: 3 },
+];
 
 // ---------- Estado del juego ----------
 const Game = {
@@ -223,6 +238,7 @@ const Game = {
   respawn: { room: 'santuario', tx: 14, ty: 15 }, beaten: {}, secrets: new Set(), killed: new Set(),
   dyn: [], winds: [], props: [], roomT: 0, menu: null, clearT: 0, clearLevel: 1, phaseSet: 'a', abilityT: 0,
   flashHud: 0, deadT: 0, victoryT: 0, playTime: 0, timeScale: 1, slowT: 0, titleT: 0,
+  mapZone: 0, pauseSel: 0,
 
   hittables() {
     const l = this.enemies.filter(e => !e.dead);
@@ -315,12 +331,64 @@ const Game = {
     g.fillText((m ? '✕ ' : '♪ ') + 'Sonido: ' + (m ? 'No' : 'Sí') + '  (M)', b.x + b.w / 2, b.y + b.h / 2 + 0.5);
   },
   menuTap(lx, ly) {
-    if ((this.state === 'title' || this.state === 'pause') && this.onSoundButton(lx, ly)) { Sound.toggle(); return true; }
+    if ((this.state === 'title' || this.state === 'pause' || this.state === 'map' || this.state === 'collection') && this.onSoundButton(lx, ly)) { Sound.toggle(); return true; }
+    if (this.state === 'pause') {
+      for (const b of this.pauseButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.pauseAction(b.id); return true; }
+      return true;   // consumir el toque: no reanudar al tocar el fondo
+    }
+    if (this.state === 'map') {
+      for (const b of this.mapButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.mapAction(b.id); return true; }
+      // tocar una zona en la vista general
+      if (this.mapZone === 0) {
+        for (const z of this.mapZoneHits()) if (lx >= z.x && lx <= z.x + z.w && ly >= z.y && ly <= z.y + z.h) { this.mapZone = z.lv; return true; }
+      }
+      return true;
+    }
+    if (this.state === 'collection') {
+      for (const b of this.collectionButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 4 && ly <= b.y + b.h + 4) { this.collectionAction(b.id); return true; }
+      return true;
+    }
     if (this.state !== 'title' || !this.menu) return false;
     for (const b of this.menuButtons()) if (lx >= b.x - 4 && lx <= b.x + b.w + 4 && ly >= b.y - 6 && ly <= b.y + b.h + 6) { this.menuAction(b.id); return true; }
     if (!this.menu.confirm && this.menu.items.length === 1) { this.menuAction(this.menu.items[0]); return true; }
     return false;
   },
+  pauseButtons() {
+    const labels = [['resume', 'Reanudar'], ['map', 'Mapa'], ['collection', 'Colección']];
+    const w = 140, h = 22, x = (VW - w) / 2, y0 = 78, gap = 10;
+    return labels.map(([id, label], i) => ({ id, label, x, y: y0 + i * (h + gap), w, h }));
+  },
+  pauseAction(id) {
+    if (id === 'resume') this.state = 'play';
+    else if (id === 'map') { this.state = 'map'; this.mapZone = 0; }
+    else if (id === 'collection') this.state = 'collection';
+  },
+  mapButtons() {
+    const btns = [{ id: 'back', label: '← Volver', x: 12, y: VH - 24, w: 70, h: 16 }];
+    if (this.mapZone === 0) {
+      // pestañas de nivel solo en detalle; en vista general no hacen falta
+    } else {
+      btns.push({ id: 'overview', label: 'Vista general', x: VW - 92, y: VH - 24, w: 80, h: 16 });
+      btns.push({ id: 'prev', label: '‹', x: VW / 2 - 60, y: 18, w: 18, h: 16 });
+      btns.push({ id: 'next', label: '›', x: VW / 2 + 42, y: 18, w: 18, h: 16 });
+    }
+    return btns;
+  },
+  mapAction(id) {
+    if (id === 'back') { if (this.mapZone) this.mapZone = 0; else this.state = 'pause'; }
+    else if (id === 'overview') this.mapZone = 0;
+    else if (id === 'prev') this.mapZone = this.mapZone <= 1 ? 3 : this.mapZone - 1;
+    else if (id === 'next') this.mapZone = this.mapZone >= 3 ? 1 : this.mapZone + 1;
+  },
+  mapZoneHits() {
+    // tres paneles de zona en la vista general
+    const w = 130, h = 150, gap = 12, total = 3 * w + 2 * gap, x0 = (VW - total) / 2, y = 48;
+    return [1, 2, 3].map((lv, i) => ({ lv, x: x0 + i * (w + gap), y, w, h }));
+  },
+  collectionButtons() {
+    return [{ id: 'back', label: '← Volver', x: 12, y: VH - 24, w: 70, h: 16 }];
+  },
+  collectionAction(id) { if (id === 'back') this.state = 'pause'; },
 
   newGame() {
     this.player = new Player();
@@ -503,13 +571,36 @@ const Game = {
       if ((this.abilityT > 1.2 && (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack'))) || this.abilityT > 8) { this.state = 'play'; this.player.jumpBuf = 0; }
       return;
     }
-    if (this.state === 'pause') { if (Input.pressed('pause') || Input.pressed('start')) this.state = 'play'; return; }
+    if (this.state === 'pause') {
+      const btns = this.pauseButtons();
+      if (Input.pressed('up')) this.pauseSel = (this.pauseSel + btns.length - 1) % btns.length;
+      if (Input.pressed('down')) this.pauseSel = (this.pauseSel + 1) % btns.length;
+      if (Input.pressed('pause')) this.state = 'play';
+      else if (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.pauseAction(btns[this.pauseSel].id);
+      return;
+    }
+    if (this.state === 'map') {
+      if (Input.pressed('pause')) { if (this.mapZone) this.mapZone = 0; else this.state = 'pause'; }
+      else if (Input.pressed('left') || Input.pressed('up')) {
+        if (this.mapZone) this.mapZone = this.mapZone <= 1 ? 3 : this.mapZone - 1;
+      } else if (Input.pressed('right') || Input.pressed('down')) {
+        if (this.mapZone) this.mapZone = this.mapZone >= 3 ? 1 : this.mapZone + 1;
+        else this.mapZone = 1;
+      } else if (Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) {
+        if (this.mapZone === 0) this.mapZone = 1; else this.mapZone = 0;
+      }
+      return;
+    }
+    if (this.state === 'collection') {
+      if (Input.pressed('pause') || Input.pressed('start') || Input.pressed('jump') || Input.pressed('attack')) this.state = 'pause';
+      return;
+    }
     if (this.state === 'victory') {
       this.victoryT += dt; FX.update(dt);
       if (this.victoryT > 1.5 && (Input.pressed('start') || Input.pressed('jump'))) this.openTitle();
       return;
     }
-    if (this.state === 'play' && (Input.pressed('pause') || Input.pressed('start'))) { this.state = 'pause'; return; }
+    if (this.state === 'play' && (Input.pressed('pause') || Input.pressed('start'))) { this.state = 'pause'; this.pauseSel = 0; return; }
     if (this.flashHud > 0) this.flashHud -= dt;
     if (this.banner) { this.banner.t += dt; if (this.banner.t > 2.6) this.banner = null; }
     for (const t of this.toasts) t.t += dt;
@@ -612,6 +703,8 @@ const Game = {
     else {
       this.drawHUD(sctx);
       if (this.state === 'pause') this.drawPause(sctx);
+      if (this.state === 'map') this.drawMap(sctx);
+      if (this.state === 'collection') this.drawCollection(sctx);
       if (this.state === 'victory') this.drawVictory(sctx);
       if (this.state === 'levelclear') this.drawLevelClear(sctx);
       if (this.state === 'ability') this.drawAbility(sctx);
@@ -1131,9 +1224,179 @@ const Game = {
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = 'bold 20px Georgia, serif'; g.fillStyle = '#3a0010'; g.fillText('PAUSA', VW / 2 + 1, 45);
     g.fillStyle = '#ff3a5c'; g.fillText('PAUSA', VW / 2, 44);
-    this.drawControls(g, 230, 66, 13);
-    g.font = '8px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
-    g.fillText(IS_TOUCH() ? 'Toca la pantalla para continuar' : 'Pulsa ENTER o Esc para continuar', VW / 2, 230);
+    const btns = this.pauseButtons();
+    btns.forEach((b, i) => {
+      const sel = this.pauseSel === i;
+      g.fillStyle = sel ? 'rgba(255,58,92,0.9)' : 'rgba(8,6,16,0.75)'; g.fillRect(b.x, b.y, b.w, b.h);
+      g.strokeStyle = sel ? '#ffffff' : 'rgba(255,255,255,0.35)'; g.lineWidth = sel ? 1.2 : 0.7; g.strokeRect(b.x, b.y, b.w, b.h);
+      g.font = 'bold 10px sans-serif'; g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+    });
+    g.font = '7px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
+    g.fillText(IS_TOUCH() ? 'Toca una opción · ♪ sonido arriba a la izquierda' : '↑↓ elegir · ENTER confirmar · Esc reanudar · M sonido', VW / 2, 230);
+    this.drawSoundButton(g);
+  },
+  drawMapBtn(g, b, sel) {
+    g.fillStyle = sel ? 'rgba(255,58,92,0.85)' : 'rgba(8,6,16,0.8)'; g.fillRect(b.x, b.y, b.w, b.h);
+    g.strokeStyle = sel ? '#ffffff' : 'rgba(255,255,255,0.35)'; g.lineWidth = 0.8; g.strokeRect(b.x, b.y, b.w, b.h);
+    g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+  },
+  drawMap(g) {
+    g.fillStyle = 'rgba(5,4,10,0.88)'; g.fillRect(0, 0, VW, VH);
+    this.uiPanel(g, 8, 8, VW - 16, VH - 16, 'rgba(255,210,138,0.55)');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 14px Georgia, serif'; g.fillStyle = '#ffd28a';
+    g.fillText(this.mapZone === 0 ? 'MAPA DEL MUNDO' : ('Nivel ' + this.mapZone + ' · ' + LEVEL_NAMES[this.mapZone]), VW / 2, 22);
+    g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8';
+    g.fillText('Solo lectura — no puedes viajar desde el mapa', VW / 2, 34);
+    if (this.mapZone === 0) this.drawMapOverview(g); else this.drawMapZone(g, this.mapZone);
+    // leyenda
+    g.font = '6px sans-serif'; g.textAlign = 'left'; g.fillStyle = '#e8ecff';
+    const lx = 90, ly = VH - 16;
+    g.fillStyle = '#ffd28a'; g.fillRect(lx, ly - 3, 5, 5); g.fillStyle = '#e8ecff'; g.fillText('Aquí', lx + 8, ly);
+    g.fillStyle = 'rgba(200,192,216,0.55)'; g.fillRect(lx + 36, ly - 3, 5, 5); g.fillStyle = '#e8ecff'; g.fillText('Visitada', lx + 44, ly);
+    g.fillStyle = 'rgba(40,36,60,0.7)'; g.fillRect(lx + 88, ly - 3, 5, 5); g.strokeStyle = 'rgba(160,160,190,0.4)'; g.strokeRect(lx + 88, ly - 3, 5, 5);
+    g.fillStyle = '#e8ecff'; g.fillText('Sin visitar', lx + 96, ly);
+    g.fillStyle = '#ffd28a'; g.fillRect(lx + 150, ly - 2, 3, 3); g.fillStyle = '#e8ecff'; g.fillText('Banco', lx + 156, ly);
+    g.fillStyle = '#ff3a5c'; g.fillRect(lx + 188, ly - 2, 3, 3); g.fillStyle = '#e8ecff'; g.fillText('Jefe', lx + 194, ly);
+    g.fillStyle = '#7ad8ff'; g.fillRect(lx + 218, ly - 2, 3, 3); g.fillStyle = '#e8ecff'; g.fillText('Derrotado', lx + 224, ly);
+    for (const b of this.mapButtons()) this.drawMapBtn(g, b, false);
+    this.drawSoundButton(g);
+  },
+  drawMapOverview(g) {
+    const zones = this.mapZoneHits();
+    const themes = { 1: '#6a4a8a', 2: '#ffb020', 3: '#7ad8ff' };
+    zones.forEach(z => {
+      const rooms = World.rooms.filter(r => r.level === z.lv);
+      const vis = rooms.filter(r => r.visited).length;
+      g.fillStyle = 'rgba(8,6,16,0.75)'; g.fillRect(z.x, z.y, z.w, z.h);
+      g.strokeStyle = themes[z.lv]; g.lineWidth = 1.2; g.strokeRect(z.x + 0.5, z.y + 0.5, z.w - 1, z.h - 1);
+      g.font = 'bold 9px sans-serif'; g.fillStyle = themes[z.lv]; g.textAlign = 'center';
+      g.fillText('Nivel ' + z.lv, z.x + z.w / 2, z.y + 14);
+      g.font = '7px sans-serif'; g.fillStyle = '#e8ecff'; g.fillText(LEVEL_SHORT[z.lv], z.x + z.w / 2, z.y + 26);
+      // mini esquema
+      this.drawRoomSchematic(g, rooms, z.x + 8, z.y + 36, z.w - 16, z.h - 70, false);
+      g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8';
+      g.fillText(vis + '/' + rooms.length + ' salas', z.x + z.w / 2, z.y + z.h - 22);
+      const boss = BOSS_META.find(b => b.level === z.lv);
+      g.fillStyle = this.beaten[boss.key] ? '#7ad8ff' : '#ff3a5c';
+      g.fillText(this.beaten[boss.key] ? 'Jefe derrotado' : 'Jefe pendiente', z.x + z.w / 2, z.y + z.h - 10);
+    });
+    g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
+    g.fillText(IS_TOUCH() ? 'Toca una zona para ver sus salas' : 'ENTER o → para detallar · Esc volver', VW / 2, VH - 32);
+  },
+  drawMapZone(g, lv) {
+    const rooms = World.rooms.filter(r => r.level === lv);
+    this.drawRoomSchematic(g, rooms, 24, 44, VW - 48, VH - 78, true);
+    g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
+    g.fillText(IS_TOUCH() ? 'Volver · Vista general' : '← → cambiar zona · Esc volver', VW / 2, VH - 32);
+  },
+  drawRoomSchematic(g, rooms, x, y, w, h, labeled) {
+    if (!rooms.length) return;
+    const minX = Math.min(...rooms.map(r => r.ox)), maxX = Math.max(...rooms.map(r => r.ox + r.w));
+    const minY = Math.min(...rooms.map(r => r.oy)), maxY = Math.max(...rooms.map(r => r.oy + r.h));
+    const sx = w / Math.max(1, maxX - minX), sy = h / Math.max(1, maxY - minY);
+    const s = Math.min(sx, sy);
+    const ox = x + (w - (maxX - minX) * s) / 2, oy = y + (h - (maxY - minY) * s) / 2;
+    // conexiones (salas solapadas ortogonalmente)
+    g.strokeStyle = 'rgba(200,192,216,0.35)'; g.lineWidth = 1.5;
+    for (const a of rooms) for (const b of rooms) {
+      if (a.id >= b.id) continue;
+      const ax = ox + (a.ox - minX + a.w / 2) * s, ay = oy + (a.oy - minY + a.h / 2) * s;
+      const bx = ox + (b.ox - minX + b.w / 2) * s, by = oy + (b.oy - minY + b.h / 2) * s;
+      const touch = !(a.ox + a.w < b.ox || b.ox + b.w < a.ox || a.oy + a.h < b.oy || b.oy + b.h < a.oy);
+      const near = Math.abs((a.ox + a.w / 2) - (b.ox + b.w / 2)) < (a.w + b.w) / 2 + 2
+        && Math.abs((a.oy + a.h / 2) - (b.oy + b.h / 2)) < (a.h + b.h) / 2 + 2;
+      if (touch || near) { g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); }
+    }
+    for (const r of rooms) {
+      const rx = ox + (r.ox - minX) * s, ry = oy + (r.oy - minY) * s;
+      const rw = Math.max(6, r.w * s), rh = Math.max(6, r.h * s);
+      const cur = this.room && this.room.id === r.id;
+      if (!r.visited) {
+        g.fillStyle = 'rgba(30,28,48,0.75)'; g.fillRect(rx, ry, rw, rh);
+        g.strokeStyle = 'rgba(120,120,150,0.35)'; g.lineWidth = 0.6; g.strokeRect(rx, ry, rw, rh);
+        if (labeled) {
+          g.font = '5px sans-serif'; g.fillStyle = 'rgba(160,160,190,0.5)'; g.textAlign = 'center';
+          g.fillText('???', rx + rw / 2, ry + rh / 2);
+        }
+        continue;
+      }
+      g.fillStyle = cur ? 'rgba(255,210,138,0.75)' : (r.secret ? 'rgba(159,230,255,0.35)' : 'rgba(200,192,216,0.45)');
+      g.fillRect(rx, ry, rw, rh);
+      g.strokeStyle = cur ? '#ffd28a' : 'rgba(238,240,250,0.7)'; g.lineWidth = cur ? 1.4 : 0.7; g.strokeRect(rx, ry, rw, rh);
+      if (r.objs.some(o => o.type === 'bench')) {
+        g.fillStyle = '#ffd28a'; g.fillRect(rx + rw / 2 - 1.5, ry + rh - 5, 3, 3);
+      }
+      const bossObj = r.objs.find(o => o.type === 'boss');
+      if (bossObj) {
+        const beaten = !!this.beaten[bossObj.boss];
+        g.fillStyle = beaten ? '#7ad8ff' : '#ff3a5c';
+        g.fillRect(rx + rw / 2 - 2, ry + rh / 2 - 2, 4, 4);
+      }
+      // salida a otra zona (exit door)
+      if (r.doors.some(d => d.kind === 'exit')) {
+        g.fillStyle = this.beaten[r.doors.find(d => d.kind === 'exit').boss] ? '#9fe6ff' : '#806020';
+        g.fillRect(rx + rw - 4, ry + rh / 2 - 2, 3, 4);
+      }
+      if (labeled && rw > 28) {
+        g.font = '5.5px sans-serif'; g.fillStyle = '#0c0814'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const nm = r.name.length > 14 ? r.name.slice(0, 12) + '…' : r.name;
+        g.fillText(nm, rx + rw / 2, ry + 6);
+      }
+    }
+    // marca del jugador
+    if (this.room && rooms.includes(this.room) && Math.floor(this.t * 4) % 2) {
+      const r = this.room;
+      const px = ox + (this.player.cx / TILE - minX) * s;
+      const py = oy + (this.player.cy / TILE - minY) * s;
+      g.fillStyle = '#ffffff'; g.fillRect(px - 2, py - 2, 4, 4);
+    }
+  },
+  drawCollection(g) {
+    g.fillStyle = 'rgba(5,4,10,0.88)'; g.fillRect(0, 0, VW, VH);
+    this.uiPanel(g, 8, 8, VW - 16, VH - 16, 'rgba(122,216,255,0.5)');
+    const found = COLLECTION.filter(c => this.secrets.has(c.key)).length;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 14px Georgia, serif'; g.fillStyle = '#9fe6ff'; g.fillText('COLECCIÓN', VW / 2, 22);
+    g.font = '8px sans-serif'; g.fillStyle = '#ffd28a';
+    g.fillText('Secretos ' + found + '/' + COLLECTION.length, VW / 2, 36);
+    // lista de secretos (columna izq)
+    g.textAlign = 'left';
+    COLLECTION.forEach((c, i) => {
+      const y = 50 + i * 22, has = this.secrets.has(c.key);
+      g.fillStyle = 'rgba(8,6,16,0.65)'; g.fillRect(20, y - 8, 250, 20);
+      g.strokeStyle = has ? c.col : 'rgba(120,120,150,0.35)'; g.lineWidth = 0.8; g.strokeRect(20, y - 8, 250, 20);
+      // icono
+      g.fillStyle = has ? c.col : 'rgba(80,80,100,0.8)';
+      if (c.ability) {
+        g.beginPath(); g.moveTo(32, y - 4); g.lineTo(38, y); g.lineTo(32, y + 4); g.lineTo(26, y); g.fill();
+      } else {
+        g.beginPath(); g.arc(32, y, 5, 0, Math.PI * 2); g.fill();
+        if (has) { g.fillStyle = '#ffffff'; g.fillRect(30, y - 2, 2, 2); }
+      }
+      g.font = 'bold 8px sans-serif'; g.fillStyle = has ? '#eef0fa' : '#6d6488';
+      g.fillText(has ? c.name : '???', 44, y - 1);
+      g.font = '6px sans-serif'; g.fillStyle = has ? '#a898c8' : '#4a4460';
+      g.fillText(has ? c.where : 'Aún no descubierto', 44, y + 7);
+    });
+    // jefes (columna der)
+    g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffb0c0'; g.textAlign = 'left';
+    g.fillText('Jefes', 290, 50);
+    BOSS_META.forEach((b, i) => {
+      const y = 66 + i * 36, has = !!this.beaten[b.key];
+      g.fillStyle = 'rgba(8,6,16,0.65)'; g.fillRect(290, y - 10, 170, 30);
+      g.strokeStyle = has ? '#7ad8ff' : 'rgba(255,58,92,0.45)'; g.lineWidth = 0.8; g.strokeRect(290, y - 10, 170, 30);
+      g.fillStyle = has ? '#7ad8ff' : '#ff3a5c'; g.fillRect(298, y - 2, 6, 6);
+      g.font = 'bold 8px sans-serif'; g.fillStyle = has ? '#eef0fa' : '#6d6488';
+      g.fillText(has ? b.name : '???', 310, y - 1);
+      g.font = '6px sans-serif'; g.fillStyle = has ? '#a898c8' : '#4a4460';
+      g.fillText(has ? ('Derrotado · Nivel ' + b.level) : ('Nivel ' + b.level + ' · pendiente'), 310, y + 9);
+    });
+    g.font = '6.5px sans-serif'; g.fillStyle = '#a898c8'; g.textAlign = 'center';
+    g.fillText(IS_TOUCH() ? 'Toca Volver' : 'Esc / ENTER volver a pausa', VW / 2, VH - 32);
+    for (const b of this.collectionButtons()) this.drawMapBtn(g, b, false);
     this.drawSoundButton(g);
   },
   drawAbility(g) {
@@ -1207,7 +1470,7 @@ function frame(now) {
   while (acc >= STEP && n < 5) { if (!(window.GAME && window.GAME.manual)) Game.update(STEP); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   Game.draw();
-  Sound.music(Game.musicName()); Sound.duck = Game.state === 'pause' ? 0.35 : 1; Sound.update();
+  Sound.music(Game.musicName()); Sound.duck = (Game.state === 'pause' || Game.state === 'map' || Game.state === 'collection') ? 0.35 : 1; Sound.update();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
