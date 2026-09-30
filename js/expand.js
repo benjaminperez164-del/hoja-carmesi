@@ -312,12 +312,16 @@ const EXTRA_ROOMS = [
     } },
   { id: 'forjaPozo', name: 'Pozo de Escoria', ox: 942, oy: -68, w: 24, h: 34, level: 4, theme: 'forge',
     build(b) {
-      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20); b.rect(23, 1, 1, 3); b.rect(23, 8, 1, 26);
-      b.rect(0, 29, 24, 5); b.spikes(4, 29, 14);
-      b.plat(4, 22, 3); b.plat(10, 16, 3); b.plat(16, 10, 4); b.rect(1, 8, 4, 1);
-      b.clear(12, 0, 3, 1);
+      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20);
+      b.rect(23, 1, 1, 24);                 // pared este (antes el hueco estaba mal alineado)
+      b.clear(23, 25, 1, 4);                // salida → sala del miniboss (misma cota que la entrada)
+      b.rect(0, 29, 24, 5);                 // suelo continuo → salida este
+      // escalada al secreto (izquierda / alto; no tapa el pasillo del suelo)
+      b.rect(1, 8, 3, 1); b.plat(1, 23, 2); b.plat(1, 18, 2); b.plat(1, 13, 2); b.plat(5, 9, 3);
+      b.clear(10, 0, 5, 1);                 // hueco amplio al secreto (Salto Celeste)
+      b.plat(10, 5, 4);                     // repisa bajo el hueco
       b.obj('gear', 12, 16); b.obj('flyer', 8, 12);
-      b.obj('sign', 3, 29, { text: '↑ Escala con paciencia' });
+      b.obj('sign', 2, 29, { text: '→ Sigue al este (suelo). ↑ Secreto' });
     } },
   { id: 'forjaSecreto', name: 'Cofre de Bronce', ox: 948, oy: -76, w: 14, h: 8, level: 4, theme: 'forge', secret: true,
     build(b) {
@@ -378,11 +382,16 @@ const EXTRA_ROOMS = [
     } },
   { id: 'techoPozo', name: 'Pozo de Nubes', ox: 1164, oy: -68, w: 24, h: 34, level: 5, theme: 'storm',
     build(b) {
-      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20); b.rect(23, 1, 1, 3); b.rect(23, 8, 1, 26);
-      b.rect(0, 29, 24, 5); b.spikes(4, 29, 14);
-      b.plat(4, 22, 3); b.plat(10, 16, 3); b.plat(16, 10, 4); b.rect(1, 8, 4, 1);
-      b.clear(12, 0, 3, 1);
+      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20);
+      b.rect(23, 1, 1, 24);                 // pared este (antes el hueco estaba mal alineado)
+      b.clear(23, 25, 1, 4);                // salida → sala del miniboss (misma cota que la entrada)
+      b.rect(0, 29, 24, 5);                 // suelo continuo → salida este
+      // escalada al secreto (izquierda / alto; no tapa el pasillo del suelo)
+      b.rect(1, 8, 3, 1); b.plat(1, 23, 2); b.plat(1, 18, 2); b.plat(1, 13, 2); b.plat(5, 9, 3);
+      b.clear(10, 0, 5, 1);                 // hueco amplio al secreto (Salto Celeste)
+      b.plat(10, 5, 4);                     // repisa bajo el hueco
       b.obj('spark', 12, 16); b.obj('flyer', 8, 12);
+      b.obj('sign', 2, 29, { text: '→ Sigue al este (suelo). ↑ Secreto' });
     } },
   { id: 'techoSecreto', name: 'Nido Eléctrico', ox: 1170, oy: -76, w: 14, h: 8, level: 5, theme: 'storm', secret: true,
     build(b) {
@@ -442,11 +451,16 @@ const EXTRA_ROOMS = [
     } },
   { id: 'jardinPozo', name: 'Pozo Verde', ox: 1386, oy: -68, w: 24, h: 34, level: 6, theme: 'garden',
     build(b) {
-      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20); b.rect(23, 1, 1, 3); b.rect(23, 8, 1, 26);
-      b.rect(0, 29, 24, 5); b.spikes(4, 29, 14);
-      b.plat(4, 22, 3); b.plat(10, 16, 3); b.plat(16, 10, 4); b.rect(1, 8, 4, 1);
-      b.clear(12, 0, 3, 1);
+      b.rect(0, 0, 24, 1); b.rect(0, 1, 1, 20);
+      b.rect(23, 1, 1, 24);                 // pared este (antes el hueco estaba mal alineado)
+      b.clear(23, 25, 1, 4);                // salida → sala del miniboss (misma cota que la entrada)
+      b.rect(0, 29, 24, 5);                 // suelo continuo → salida este
+      // escalada al secreto (izquierda / alto; no tapa el pasillo del suelo)
+      b.rect(1, 8, 3, 1); b.plat(1, 23, 2); b.plat(1, 18, 2); b.plat(1, 13, 2); b.plat(5, 9, 3);
+      b.clear(10, 0, 5, 1);                 // hueco amplio al secreto (Salto Celeste)
+      b.plat(10, 5, 4);                     // repisa bajo el hueco
       b.obj('sprout', 12, 16); b.obj('flyer', 8, 12);
+      b.obj('sign', 2, 29, { text: '→ Sigue al este (suelo). ↑ Secreto' });
     } },
   { id: 'jardinSecreto', name: 'Pétalo Oculto', ox: 1392, oy: -76, w: 14, h: 8, level: 6, theme: 'garden', secret: true,
     build(b) {
