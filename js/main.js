@@ -675,7 +675,7 @@ const Game = {
 
   update(dt) {
     this.t += dt;
-    Input.update();
+    Input.update(this.state === 'play' && FX.hitStop > 0);   // los pasos congelados no consumen pulsaciones (A-01)
     if (this.state === 'title') {
       this.titleT += dt;
       if (!this.menu) this.openTitle();

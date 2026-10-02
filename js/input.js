@@ -15,6 +15,7 @@ const Input = (() => {
   const ACTIONS = ['left','right','up','down','jump','attack','dash','heal','start','pause'];
   const keyState = {}, latched = {};
   const virt = {}, virtLatch = {};   // entrada virtual (controles táctiles)
+  const padLatch = {};               // pulsaciones de mando vistas durante pasos congelados (hit-stop)
   const cur = {}, prev = {};
   ACTIONS.forEach(a => { cur[a] = false; prev[a] = false; });
   let usingPad = false;
@@ -48,8 +49,10 @@ const Input = (() => {
     }
   }
 
-  // Llamado una vez por paso fijo de simulación
-  function update() {
+  // Llamado una vez por paso fijo de simulación. frozen = paso congelado por el hit-stop: no se consume nada
+  // (teclado y táctil ya quedan retenidos en sus latch; el mando se muestrea y se retiene aquí) y se entrega en el primer paso real.
+  function update(frozen) {
+    if (frozen) { try { const s = {}; pollPad(s); for (const a in s) if (s[a]) padLatch[a] = true; } catch (e) {} return; }
     const s = {};
     ACTIONS.forEach(a => s[a] = false);
     for (const code in keyState) if (keyState[code] || latched[code]) s[KEYMAP[code]] = true;
@@ -57,6 +60,7 @@ const Input = (() => {
     for (const a in virt) if (virt[a] || virtLatch[a]) s[a] = true;
     for (const a in virtLatch) virtLatch[a] = false;
     try { pollPad(s); } catch (e) { /* sin mando */ }
+    for (const a in padLatch) { if (padLatch[a]) s[a] = true; padLatch[a] = false; }
     ACTIONS.forEach(a => { prev[a] = cur[a]; cur[a] = s[a]; });
   }
   // on=true pulsa, on=false suelta. Una pulsación corta nunca se pierde (se retiene un paso).

@@ -88,20 +88,17 @@ class Player {
 
     const stunned = this.hurtT > 0;
 
-    // Sable Cargado: mantener ATACAR ~0.7s y soltar → onda; toque corto → tajo normal
-    if (this.hasCharge) {
-      if (I.pressed('attack')) {
-        if (this.atk) this.atkBuf = 0.15;
-        else if (!stunned && this.dashT <= 0 && !this.healing) { this.charging = true; this.chargeT = 0; }
-      }
-    } else if (I.pressed('attack')) this.atkBuf = 0.15;
+    // ATACAR: el tajo sale al pulsar (con o sin Sable). Con Sable Cargado, mantener carga; soltar con ≥ 0,7 s → onda
+    if (I.pressed('attack')) {
+      this.atkBuf = 0.15;
+      if (this.hasCharge && !stunned && this.dashT <= 0 && !this.healing) { this.charging = true; this.chargeT = 0; }
+    }
 
     if (this.charging) {
       if (stunned || this.healing || this.dashT > 0 || I.pressed('dash')) {
         this.charging = false; this.chargeT = 0;
       } else if (!I.down('attack')) {
-        if (this.chargeT >= 0.7) this.fireWave(game);
-        else this.atkBuf = 0.15;
+        if (this.chargeT >= 0.7) this.fireWave(game);   // soltar antes no hace nada extra: el tajo ya salió al pulsar
         this.charging = false; this.chargeT = 0;
       } else {
         this.chargeT += dt;

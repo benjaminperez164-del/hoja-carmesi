@@ -313,6 +313,52 @@ const CASOS = [
       detalle: `salió hacia ${r.sala} durante dying; cierres con efecto: ${r.efectivos}; aviso «${r.aviso}»; estado ${r.estado}; invulnT ${r.invulnT}; puertas abiertas=${r.puertas} (esperado: 1, «… derrotado», play, ≤ 1,3, true)` };
   } },
 
+  ...[
+    { jefe: 'guardian', nombre: 'Guardián (principal)', sala: 'guardian', tx: 22, ty: 15, principal: true },
+    { jefe: 'capataz', nombre: 'Capataz (minijefe)', sala: 'arenaCapataz', tx: 9, ty: 12, principal: false },
+  ].map(cfg => ({ id: 'C-01', nombre: `Muerte del jugador durante la muerte del jefe · ${cfg.nombre}`, pendiente: null, async run(pg) {
+    // Los pinchos ponen invulnT = 0 antes del daño: el jugador puede morir con el jefe en 'dying'. Las arenas no tienen pinchos,
+    // así que se reproduce igual: invulnT = 0 y un golpe con 1 de vida.
+    const r = await pg.ejecutar(cfg => {
+      const G = GAME.Game, KEY = 'hojaCarmesi.save.v1';
+      GAME.noEnemies = true;
+      G.newGame(); GAME.warp(cfg.sala, cfg.tx, cfg.ty); G.state = 'play';
+      const p = G.player; p.sitting = false; p.maxHp = 5; p.hp = 5;
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const b = G.boss;
+      if (!b || b.state !== 'idle') return { prep: false, motivo: `el jefe no llegó a 'idle' (${b ? b.state : 'sin jefe'})` };
+      b.hp = 1; b.hurt(1, p, 'g1');
+      if (b.state !== 'dying') return { prep: false, motivo: `el jefe no entró en 'dying' (${b.state})` };
+      GAME.step(10, []);
+      // instrumentación del arnés: cuenta avisos «derrotado» y entradas en levelclear
+      const origToast = G.toast; let avisos = 0; G.toast = function (t, d) { if (/derrotado/.test(t)) avisos++; return origToast.call(this, t, d); };
+      try {
+        p.invulnT = 0; p.hp = 1; p.hurt(1, p.cx + 1, G);           // como un pincho: sin invulnerabilidad, muere
+        const murio = G.state === 'dying', jefeMuriendoAlMorir = b.state === 'dying' && !b.dead;
+        const secuencia = [G.state]; let levelclearEnMuerte = false, cerradoEnMuerte = false, entradasLevelclear = 0, prev = G.state;
+        for (let i = 0; i < 900; i++) {
+          GAME.step(1, []);
+          if (G.state !== prev) { secuencia.push(G.state); if (G.state === 'levelclear') entradasLevelclear++; prev = G.state; }
+          if (G.state === 'dying' && b.dead) cerradoEnMuerte = true;            // el cierre no debe ocurrir con la pantalla de muerte
+          if (G.state === 'dying' && secuencia.includes('levelclear')) levelclearEnMuerte = true;
+        }
+        const save = JSON.parse(localStorage.getItem(KEY) || '{}');
+        return { prep: murio && jefeMuriendoAlMorir, motivo: `murió=${murio}, jefe aún muriendo=${jefeMuriendoAlMorir}`,
+          secuencia, levelclearEnMuerte, cerradoEnMuerte, entradasLevelclear, avisos, beaten: !!G.beaten[cfg.jefe], sala: G.room.id,
+          puertas: GAME.World.byId[cfg.sala].doors.every(d => !d.active), hp: p.hp, maxHp: p.maxHp, invulnT: +p.invulnT.toFixed(2),
+          saveBeaten: !!(save.beaten && save.beaten[cfg.jefe]), saveRespawn: save.respawn && save.respawn.room, respawn: G.respawn.room };
+      } finally { G.toast = origToast; }
+    }, cfg);
+    if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
+    const pantallas = cfg.principal ? r.entradasLevelclear === 1 && r.avisos === 0 : r.entradasLevelclear === 0 && r.avisos === 1;
+    const ok = !r.levelclearEnMuerte && !r.cerradoEnMuerte && pantallas && r.beaten && r.puertas && r.hp === r.maxHp && r.invulnT <= 1.3 &&
+      r.saveBeaten && r.saveRespawn === r.respawn;
+    return { prep: { ok: true }, ok,
+      detalle: `secuencia ${r.secuencia.join(' → ')}; cierre durante la pantalla de muerte=${r.cerradoEnMuerte}; levelclear ×${r.entradasLevelclear}, avisos ×${r.avisos}; ` +
+        `vencido=${r.beaten}, puertas abiertas=${r.puertas}, reaparece en ${r.sala} con ${r.hp}/${r.maxHp} HP; guardado: vencido=${r.saveBeaten}, banco=${r.saveRespawn}` +
+        ` (esperado: ${cfg.principal ? 'levelclear ×1, avisos ×0' : 'levelclear ×0, aviso ×1'}, sin cierre durante la muerte)` };
+  } })),
+
   { id: 'B-01', nombre: "Golpear al Guardián en 'dying' no da energía", pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game;
@@ -363,7 +409,7 @@ const CASOS = [
     return { prep: { ok: true }, ok: r.energia === 0, detalle: `energía tras impactar la onda en el jefe en dying: ${r.energia} (esperado 0)` };
   } },
 
-  { id: 'A-01a', nombre: 'Pulsar salto en el 2.º paso del hit-stop', pendiente: 'A-01', async run(pg) {
+  { id: 'A-01a', nombre: 'Pulsar salto en el 2.º paso del hit-stop', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, FX = GAME.FX;
       G.newGame(); const p = G.player; p.sitting = false;
@@ -386,7 +432,7 @@ const CASOS = [
     return { prep: { ok: true }, ok: r.subida > 2, razon: r.subida <= 2, detalle: `subida tras el hit-stop ${r.subida} px, vy ${r.vy} (esperado: salta, como el control con vy ${r.vyControl})` };
   } },
 
-  { id: 'A-01b', nombre: 'Soltar salto durante el hit-stop recorta la altura', pendiente: 'A-01', async run(pg) {
+  { id: 'A-01b', nombre: 'Soltar salto durante el hit-stop recorta la altura', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, FX = GAME.FX;
       G.newGame(); const p = G.player; p.sitting = false;
@@ -424,6 +470,82 @@ const CASOS = [
     const umbral = (alto.altura + corto.altura) / 2;
     return { prep: { ok: true }, ok: hs.altura < umbral, razon: hs.altura >= umbral,
       detalle: `altura soltando en hit-stop ${hs.altura} px (esperado < ${umbral.toFixed(1)}; salto completo ${alto.altura}, soltando sin hit-stop ${corto.altura})` };
+  } },
+
+  { id: 'A-01', nombre: 'Pausa pulsada durante el hit-stop', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, FX = GAME.FX;
+      G.newGame(); const p = G.player; p.sitting = false; GAME.step(20, []);
+      FX.hitStop = 5; GAME.step(1, []); const hs = FX.hitStop;
+      GAME.step(1, ['pause']);                     // pulsación corta (Esc) dentro del hit-stop
+      let k = 0; while (FX.hitStop > 0 && k < 20) { GAME.step(1, []); k++; }
+      GAME.step(2, []);
+      return { hs, estado: G.state };
+    });
+    return { prep: { ok: r.hs > 0, motivo: 'el hit-stop ya había terminado al pulsar' }, ok: r.estado === 'pause',
+      detalle: `estado tras el hit-stop: ${r.estado} (esperado pause)` };
+  } },
+
+  { id: 'A-01', nombre: 'Sin Sable: combo de 3 golpes pulsando en cada hit-stop', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, FX = GAME.FX;
+      GAME.noEnemies = true; G.newGame(); const p = G.player; p.sitting = false; GAME.step(20, []);
+      // Diana del arnés (no del juego): objeto golpeable delante del jugador, sin retroceso, que nunca muere
+      let golpes = 0;
+      G.props.push({ x: p.x + p.w + 4, y: p.y - 10, w: 24, h: 32, dead: false, noRecoil: true, contact: 0, get cx() { return this.x + 12; }, hurt() { golpes++; }, draw() {} });
+      const tipos = []; let ultimo = null, pulsadoEnEsteStop = false, pulsacionesEnStop = 0;
+      GAME.step(1, ['attack']);
+      for (let i = 0; i < 90; i++) {
+        if (p.atk && p.atk !== ultimo) { tipos.push(p.atk.type); ultimo = p.atk; }
+        if (FX.hitStop > 0) { if (!pulsadoEnEsteStop && FX.hitStop <= 3) { GAME.step(1, ['attack']); pulsadoEnEsteStop = true; pulsacionesEnStop++; continue; } }
+        else pulsadoEnEsteStop = false;
+        GAME.step(1, []);
+      }
+      return { tipos, golpes, pulsacionesEnStop };
+    });
+    const prep = { ok: r.golpes >= 1 && r.pulsacionesEnStop >= 1, motivo: `golpes a la diana=${r.golpes}, pulsaciones dentro de un hit-stop=${r.pulsacionesEnStop}` };
+    return { prep, ok: r.tipos.slice(0, 3).join(',') === 'g1,g2,g3',
+      detalle: `tajos encadenados: ${r.tipos.join(' → ') || 'ninguno'} (esperado g1 → g2 → g3); golpes ${r.golpes}; pulsaciones en hit-stop ${r.pulsacionesEnStop}` };
+  } },
+
+  ...[
+    { nombre: 'toque corto → 1 tajo en el primer paso, sin onda', mantener: 1, onda: false },
+    { nombre: 'mantener ≥ 0,7 s y soltar → tajo al pulsar + onda al soltar', mantener: 50, onda: true },
+    { nombre: 'mantener 2 s → un solo tajo', mantener: 120, onda: true },
+  ].map(cfg => ({ id: 'A-05', nombre: `Con Sable: ${cfg.nombre}`, pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(cfg => {
+      const G = GAME.Game;
+      GAME.noEnemies = true; G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
+      const ondas = () => G.hazards.filter(h => h.constructor && h.constructor.name === 'ChargeWave').length;
+      let tajos = 0, ultimo = null, pasoPrimerTajo = null, ondaAntesDeSoltar = false, ondaTrasSoltar = false;
+      const mira = paso => { if (p.atk && p.atk !== ultimo) { tajos++; ultimo = p.atk; if (pasoPrimerTajo === null) pasoPrimerTajo = paso; } };
+      for (let i = 1; i <= cfg.mantener; i++) { GAME.step(1, ['attack']); mira(i); if (ondas()) ondaAntesDeSoltar = true; }
+      for (let i = 1; i <= 40; i++) { GAME.step(1, []); mira(cfg.mantener + i); if (ondas()) ondaTrasSoltar = true; }
+      return { enSuelo: p.onGround, tiene: !!p.hasCharge, tajos, pasoPrimerTajo, ondaAntesDeSoltar, ondaTrasSoltar };
+    }, cfg);
+    const prep = { ok: r.tiene, motivo: 'el Sable no está activo' };
+    const ok = r.pasoPrimerTajo === 1 && r.tajos === 1 && !r.ondaAntesDeSoltar && r.ondaTrasSoltar === cfg.onda;
+    return { prep, ok,
+      detalle: `primer tajo en el paso ${r.pasoPrimerTajo}, tajos ${r.tajos}, onda antes de soltar=${r.ondaAntesDeSoltar}, onda al soltar=${r.ondaTrasSoltar} (esperado: 1, 1, false, ${cfg.onda})` };
+  } })),
+
+  { id: 'A-01', nombre: 'Pulsar y soltar dentro del mismo hit-stop', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, FX = GAME.FX;
+      G.newGame(); const p = G.player; p.sitting = false; GAME.step(30, []);
+      const alSuelo = () => { let k = 0; GAME.step(2, []); while (!p.onGround && k < 300) { GAME.step(1, []); k++; } return p.onGround; };
+      // control: salto completo (mantener) para comparar alturas
+      alSuelo(); let y0 = p.y, minY = p.y; GAME.step(1, ['jump']); for (let i = 0; i < 120 && !(i > 3 && p.onGround); i++) { GAME.step(1, ['jump']); minY = Math.min(minY, p.y); }
+      const completo = y0 - minY;
+      alSuelo(); y0 = p.y; minY = p.y;
+      FX.hitStop = 6; GAME.step(1, []); const hs1 = FX.hitStop;
+      GAME.step(1, ['jump']); GAME.step(1, []); const hs2 = FX.hitStop;   // pulsa y suelta sin salir del hit-stop
+      for (let i = 0; i < 120; i++) { GAME.step(1, []); minY = Math.min(minY, p.y); if (i > 10 && p.onGround) break; }
+      return { completo: +completo.toFixed(1), altura: +(y0 - minY).toFixed(1), hs1, hs2 };
+    });
+    const prep = { ok: r.hs1 > 0 && r.hs2 > 0 && r.completo > 40, motivo: `hit-stop al pulsar ${r.hs1} y al soltar ${r.hs2}; salto completo ${r.completo} px` };
+    return { prep, ok: r.altura > 2 && r.altura < r.completo / 2,
+      detalle: `altura del salto ${r.altura} px (esperado > 2: la pulsación cuenta; y < ${(r.completo / 2).toFixed(1)}: la suelta recorta; salto completo ${r.completo} px)` };
   } },
 
   { id: 'A-02', nombre: 'Punto seguro sobre bloque de fase + cambio de fase', pendiente: 'A-02', async run(pg) {
@@ -647,7 +769,7 @@ const CASOS = [
       detalle: `arenas con fuga con las puertas cerradas: ${r.fugas.length ? r.fugas.join(', ') : 'ninguna'}; Arena Áurea: ${r.salio ? `salió en el paso ${r.salio} hacia ${r.sala} sin vencer al jefe` : 'no pudo salir'} (esperado: ninguna fuga)` };
   } },
 
-  { id: 'A-05', nombre: 'Con Sable Cargado, el tajo sale al pulsar', pendiente: 'A-05', async run(pg) {
+  { id: 'A-05', nombre: 'Con Sable Cargado, el tajo sale al pulsar', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game;
       const medir = conSable => {
@@ -665,7 +787,7 @@ const CASOS = [
       detalle: `pasos desde la pulsación hasta el tajo con un toque de 6 pasos: con Sable ${r.con.pasos}, sin Sable ${r.sin.pasos} (esperado ≤ 2)` };
   } },
 
-  { id: 'A-01c', nombre: 'Con Sable Cargado, pulsar ATACAR en el hit-stop', pendiente: 'A-01', async run(pg) {
+  { id: 'A-01c', nombre: 'Con Sable Cargado, pulsar ATACAR en el hit-stop', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, FX = GAME.FX;
       G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
