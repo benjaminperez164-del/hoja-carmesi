@@ -153,9 +153,7 @@ class MiniBoss extends Enemy {
           this.dead = true;
           FX.burst(this.cx, this.cy, 50, { colors: this.deathColors, speed: 240, life: 0.8 });
           FX.ring(this.cx, this.cy, '#ffffff', 40); FX.shake(8, 0.4);
-          const MAIN = { forjador: 1, tempestad: 1, raiz: 1, ecos: 1 };
-          if (MAIN[this.key]) Game.victory(this);
-          else Game.toast((this.name || 'Enemigo') + ' derrotado', 2.5);
+          Game.victory(this);
         }
         break;
     }
@@ -208,6 +206,7 @@ class Tempestad extends MiniBoss {
     this.hoverY = 0;
   }
   update(dt, game) {
+    if (!['dormant', 'intro', 'idle', 'diveTel', 'dive'].includes(this.state)) return MiniBoss.prototype.update.call(this, dt, game);
     const p = game.player; this.t += dt; this.st += dt; if (this.flashT > 0) this.flashT -= dt;
     if (this.state === 'dormant') {
       if (p.x > this.room.px + 4 * TILE && p.hp > 0) { game.startBoss(this); this.set('intro'); this.hoverY = this.floorY - this.h - 50; }
@@ -227,9 +226,7 @@ class Tempestad extends MiniBoss {
     if (this.state === 'dive') {
       moveEntity(this, dt);
       if (this.y + this.h >= this.floorY) { this.y = this.floorY - this.h; this.vy = -300; FX.shake(6, 0.25); this.set('idle'); this.hoverY = this.floorY - this.h - 50; }
-      return;
     }
-    MiniBoss.prototype.update.call(this, dt, game);
   }
 }
 

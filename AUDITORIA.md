@@ -12,6 +12,24 @@
 
 ## Actualización a c54d4d7 (leer primero)
 
+### U.0 Registro de correcciones
+
+| Bloque | Commit | Hallazgos corregidos | Verificación |
+|---|---|---|---|
+| 1 · Desbloquear la Galería | `ee8b5e1` | C-02 | Casos C-02 ×3 (progresión del mapa, Pozo→Galería, Cámara del Rayo) en verde |
+| 2 · Cierre de jefes | commit «fix(jefes): cierre único…» (Bloque 2) | C-01, A-03, B-01, A-06 | Casos C-01 ×9, B-01 ×2, A-03 y A-06 en verde; comprobado que todos fallan con el código anterior |
+
+Estado de la suite tras el Bloque 2: **17 PASA · 8 ROJO ESPERADO · 0 FALLA · 0 ERROR · 0 ANOMALÍA**. Pendientes: A-01 (×3), A-02, A-04, A-05, M-09, M-07.
+
+**Cómo quedó el cierre de jefes (Bloque 2):**
+- Una sola tabla de jefes principales: `MAIN_BOSSES` (`main.js:301`).
+- `bossDefeated` ya no abre puertas ni programa el sonido de la puerta (`main.js:619-625`).
+- `victory()` es el cierre único e idempotente (`main.js:626-652`): abre puertas, suena la puerta, `invulnT = 0`, y muestra pantalla (principales) o aviso (minijefes).
+- `MiniBoss` siempre llega a ese cierre (`expand.js:156`).
+- Defensa: `resetBossEncounter` (que usan `enterRoom`, la reaparición y la partida nueva) cierra antes al jefe que esté en `dying` (`main.js:527`).
+- B-01: `Boss.hurt` devuelve `false` (`boss.js:12`). El resto de jefes ya lo hacía, y la onda del Sable respeta ese `false`.
+- A-06: la Tempestad delega los estados que no gestiona antes de sumar temporizadores (`expand.js:209`). No hay otros temporizadores contados dos veces: Forjador, Raíz y Ecos no suman antes de delegar.
+
 ### U.1 Qué se revisó y cómo
 
 - **Delta auditado:** `d68ef4d..c54d4d7`, 6 commits: pulido visual, menú de pausa (mapa, colección, controles), Sable Cargado y sellos de cristal, expansión de N1–N3 con N4–N6 y el jefe final Ecos (`js/expand.js`, nuevo), y el arreglo del softlock en los pozos verticales. En total, **+1.833 / −282 líneas en 14 archivos** de código, más 36 capturas nuevas.
@@ -48,7 +66,7 @@ La expansión trae 8 hallazgos nuevos:
 
 | ID | Sev. | Estado en c54d4d7 | Archivo:línea actual | Nota / reverificación |
 |---|---|---|---|---|
-| C-01 | CRÍTICO | **Sigue, ampliado** | `main.js:616-623`, `main.js:534-538`, `main.js:624-647`, `boss.js:117-123`, `level2.js:477-483`, `level3.js:353-359`, `expand.js:149-160` | Test: rojo en los 7 jefes con pantalla de nivel (Guardián, Heraldo, Oráculo, Forjador, Tempestad, Raíz, Ecos). Con Ecos, `completed` nunca se escribe y se pierden los créditos |
+| C-01 | CRÍTICO | **Corregido** (commit «fix(jefes): cierre único…» (Bloque 2)) · antes: sigue, ampliado | `main.js:616-623`, `main.js:534-538`, `main.js:624-647`, `boss.js:117-123`, `level2.js:477-483`, `level3.js:353-359`, `expand.js:149-160` | Test: rojo en los 7 jefes con pantalla de nivel (Guardián, Heraldo, Oráculo, Forjador, Tempestad, Raíz, Ecos). Con Ecos, `completed` nunca se escribe y se pierden los créditos |
 | A-01 | ALTO | **Sigue, ampliado** | `main.js:673`, `main.js:770`, `player.js:87`, `player.js:92-97`, `player.js:196` | Tests A-01a/b en rojo. Nuevo A-01c: con el Sable, la pulsación de ATACAR durante el hit-stop también se pierde (ni tajo ni carga) |
 | A-02 | ALTO | Sigue | `player.js:255-264`, `player.js:68-73`, `main.js:580-593` | Test en rojo (7 golpes de pinchos en 10 s, muere). La sala nueva con bloques de fase (Umbral de Luz) no tiene pinchos debajo: no hay más casos |
 | M-01 | MEDIO | Sigue (latente) | `main.js:779` | Revisados los 5 `mover` nuevos (Cresta y los tres puentes de N4–N6): ninguno empuja contra un muro |
@@ -59,7 +77,7 @@ La expansión trae 8 hallazgos nuevos:
 | M-06 | MEDIO | **Empeora** | `main.js:7`, `touch.js:125`, `level2.js:3-9` vs `enemies.js:49`, `Game` global en `boss.js:18,122`, `level2.js:119,187,371,373,482`, `level3.js:91,262,264,358`, `expand.js:103,157-158,261`; `expand.js:518-523` | Nuevo: `expand.js` reconstruye `World.rooms` y `World.byId` desde fuera al cargar (parche sobre `world.js`) |
 | M-07 | MEDIO | Sigue | `main.js:345-352`, `main.js:629-633`, `main.js:362-365`, `main.js:356` | Test en rojo con una partida terminada (Ecos vencido). La migración de `completed` ya no es código muerto: ahora rebaja a `false` las partidas que terminaban en N3, a propósito |
 | M-08 | MEDIO | **Empeora** | Celeste: `main.js:359, 375, 547, 566, 643-646`; Cargado: `main.js:360, 376, 567, 637-642`; `expand.js:156` vs `main.js:628` | Dos tablas `MAIN` distintas: la de `expand.js` incluye `ecos`, la de `main.js` lo trata aparte |
-| B-01 | BAJO | Sigue, ampliado | `boss.js:12`, `player.js:328`, `level2.js:152` | Test en rojo. La onda del Sable también da energía al golpear al Guardián en `dying` |
+| B-01 | BAJO | **Corregido** (commit «fix(jefes): cierre único…» (Bloque 2)) · antes: sigue, ampliado | `boss.js:12`, `player.js:328`, `level2.js:152` | Test en rojo. La onda del Sable también da energía al golpear al Guardián en `dying` |
 | B-02 | BAJO | Sigue | `main.js:1364`, `level2.js:134`, `level2.js:195` | — |
 | B-03 | BAJO | Sigue, ampliado | `player.js:220`, `player.js:314`, `boss.js:28,126`, `main.js:1345`, `level2.js:76`/`main.js:780`, `input.js:73` | Nuevo código muerto: el estado `'victory'` ya no se activa nunca (`main.js:751-755`, `864`, `1683-1702`); el resumen de tiempo y secretos no se muestra |
 | B-04 | BAJO | Sigue | `main.js:320, 369, 507`, `level2.js:365`, `main.js:338-341`, `enemies.js:44`, `boss.js:126` | Se suman las tablas `MAIN` y los valores de vida de los 10 jefes nuevos, sueltos en `expand.js:183-188` y `expand.js:193-253` |
@@ -78,23 +96,24 @@ La expansión trae 8 hallazgos nuevos:
 
 | ID | Sev. | Categoría | Archivo:línea | Descripción | Evidencia (resumen) | Corrección propuesta | Esf. |
 |---|---|---|---|---|---|---|---|
-| C-02 | CRÍTICO | Softlock / progresión | `world.js:100-102` | La alcoba del Sable Cargado de la Galería Suspendida ocupa el único pasillo de entrada desde el Pozo del Eco. Una partida nueva no puede pasar de ahí | Ejecución: el borde derecho del jugador no pasa de la baldosa 1 de la Galería con ninguna combinación de salto, dash o habilidades. Conectividad: 45 salas no secretas inalcanzables (53 contando secretas). Introducido en `44627a5` | Mover la alcoba fuera del pasillo, por ejemplo a la pared del fondo encima de la repisa. Mantener el test de conectividad para cualquier sala futura | S |
-| A-03 | ALTO | Estados / combate | `expand.js:156-158`, `main.js:619` | Los 6 minijefes (Umbra, Aureola, Centinela, Capataz, Nube, Espina) no llaman a `victory()`, así que la invulnerabilidad de 99 s de `bossDefeated` nunca se resetea, **aunque el jugador no salga de la sala** | Ejecución: `invulnT` 90,1 diez segundos después de vencer a cada uno | Llamar siempre a `victory()` (que ya ignora a los no principales) y unificar las dos tablas `MAIN` | S |
+| C-02 | CRÍTICO | Softlock / progresión | `world.js:100-102` | **Corregido (`ee8b5e1`):** alcoba reubicada en la esquina alta del fondo (`world.js:100-102`). La alcoba del Sable Cargado de la Galería Suspendida ocupa el único pasillo de entrada desde el Pozo del Eco. Una partida nueva no puede pasar de ahí | Ejecución: el borde derecho del jugador no pasa de la baldosa 1 de la Galería con ninguna combinación de salto, dash o habilidades. Conectividad: 45 salas no secretas inalcanzables (53 contando secretas). Introducido en `44627a5` | Mover la alcoba fuera del pasillo, por ejemplo a la pared del fondo encima de la repisa. Mantener el test de conectividad para cualquier sala futura | S |
+| A-03 | ALTO | Estados / combate | `expand.js:156-158`, `main.js:619` | **Corregido (commit «fix(jefes): cierre único…» (Bloque 2)).** Los 6 minijefes (Umbra, Aureola, Centinela, Capataz, Nube, Espina) no llaman a `victory()`, así que la invulnerabilidad de 99 s de `bossDefeated` nunca se resetea, **aunque el jugador no salga de la sala** | Ejecución: `invulnT` 90,1 diez segundos después de vencer a cada uno | Llamar siempre a `victory()` (que ya ignora a los no principales) y unificar las dos tablas `MAIN` | S |
 | A-04 | ALTO | Niveles / combate | `world.js:255-259` | Arena Áurea: las puertas cubren las filas 8-11, pero la abertura llega a la fila 14 a ambos lados. Con el combate activo se sale por debajo y se salta el minijefe | Ejecución: sale en 45 pasos hacia el Pasaje del Alba sin vencerlo. Análisis: es la única de las 13 arenas con fuga | Cerrar las filas 12-14 en x=0 y x=31 (`rect(0,12,1,3)`, `rect(31,12,1,3)`) | S |
 | A-05 | ALTO | Input / combate | `player.js:92-105` | Con el Sable Cargado, **todos** los tajos salen al soltar ATACAR: la latencia de cada ataque es igual al tiempo que se mantiene el botón | Ejecución: con un toque de 6 pasos, el tajo sale en el paso 7 con el Sable y en el 1 sin él | Lanzar el tajo al pulsar y cargar en paralelo; soltar con la carga completa dispara la onda | S |
-| A-06 | ALTO | Jefes / bucle | `expand.js:211`, `expand.js:232` (y `expand.js:107`) | `Tempestad.update` incrementa `t`, `st` y `flashT` y luego delega en `MiniBoss.update`, que los vuelve a incrementar. Avisos, rugido, salto y muerte van al doble de velocidad | Ejecución: aviso de disparo de 9 pasos (0,15 s) frente a 18 del Forjador; rugido de 26 frente a 53 | No incrementar antes de delegar, o mover el incremento a un único método | S |
+| A-06 | ALTO | Jefes / bucle | `expand.js:211`, `expand.js:232` (y `expand.js:107`) | **Corregido (commit «fix(jefes): cierre único…» (Bloque 2)).** `Tempestad.update` incrementa `t`, `st` y `flashT` y luego delega en `MiniBoss.update`, que los vuelve a incrementar. Avisos, rugido, salto y muerte van al doble de velocidad | Ejecución: aviso de disparo de 9 pasos (0,15 s) frente a 18 del Forjador; rugido de 26 frente a 53 | No incrementar antes de delegar, o mover el incremento a un único método | S |
 | M-09 | MEDIO | Diseño / estados | Bancos: `world.js:134, 261, 387`, `expand.js:338, 408, 477, 512`; disparador: `expand.js:111, 213`; banco: `main.js:787-795` | 7 arenas tienen el banco dentro. En 5 (banco en x=5 y disparador del jefe en x>4) el combate empieza y la puerta se cierra **nada más reaparecer**: tras morir no se puede salir de la arena hasta ganar, y en el Abismo Carmesí eso significa no volver nunca a explorar. Además, sentarse en mitad del combate cura al jugador y devuelve al jefe a vida llena | Ejecución: 5/7 arenas encierran al reaparecer; jugador de 2 a 8 HP, jefe de 5 a 30 HP | Decidir el diseño (pregunta U.7-1). Técnicamente: banco fuera del rango del disparador (o en la antesala) y no permitir descansar con un jefe activo | S |
 | B-13 | BAJO | Contenido / jugabilidad | `expand.js:297-515`, `expand.js:88-178` | N4, N5 y N6 son la misma plantilla. De las 8 salas de cada zona, 6 tienen geometría idéntica en las tres zonas, y la arena y la cámara del jefe solo cambian el identificador del jefe. Los 10 jefes nuevos comparten la IA de `MiniBoss` (embestida, disparo, salto) con, como mucho, un patrón añadido | Comparación automática de las definiciones de sala | Decidir si es un marcador provisional. Si se mantiene, generar las salas con una función con parámetros en lugar de copiarlas | M-L |
-| B-14 | BAJO | UI | `main.js:485-491`, `main.js:734-736`, `main.js:274` | El mapa de la pausa solo recorre las zonas 1–6: el Abismo Carmesí (nivel 7) no aparece. `LEVEL_SHORT` llama «Abismo» tanto al nivel 1 como al 7 | Lectura del código | Incluir el nivel 7 y corregir la etiqueta del nivel 1 | S |
+| B-14 | BAJO | UI | `main.js:487-493`, `main.js:736-738`, `main.js:274` | El mapa de la pausa solo recorre las zonas 1–6: el Abismo Carmesí (nivel 7) no aparece. `LEVEL_SHORT` llama «Abismo» tanto al nivel 1 como al 7 | Lectura del código | Incluir el nivel 7 y corregir la etiqueta del nivel 1 | S |
+| B-15 | BAJO | Pulido / niveles | `world.js:107` | El cartel «↓+Ataque en el aire: rebote» de la Galería Suspendida flota una baldosa por encima de la repisa: su base está en la fila 6 y la repisa empieza en la fila 7. Presente desde `d68ef4d` (`world.js:102` en esa versión). Registrado en el Bloque 2; sin corregir | Mapa ASCII de la Galería (Bloque 1): el cartel `i` queda en el aire sobre la repisa | Cambiar `ty` de 6 a 7 | S |
 
-**Conteo actualizado (31 hallazgos):**
+**Conteo actualizado (32 hallazgos; corregidos: C-01, C-02, A-03, A-06, B-01):**
 
 | Severidad | Originales (siguen o cambiaron) | Nuevos | Total |
 |---|---|---|---|
 | CRÍTICO | 1 | 1 | **2** |
 | ALTO | 2 | 4 | **6** |
 | MEDIO | 8 | 1 | **9** |
-| BAJO | 12 | 2 | **14** |
+| BAJO | 12 | 3 | **15** |
 
 ### U.5 Detalle de los hallazgos nuevos
 
@@ -222,6 +241,8 @@ Los 10 jefes nuevos son instancias de `MiniBoss` (`expand.js:88-178`, con colore
 
 ### U.8 Tests adaptados
 
+> Estado en el momento del Bloque 0b. El estado vigente está en U.0.
+
 `node tests/regresion.mjs` → **1 PASA · 20 ROJO ESPERADO · 0 FALLA · 0 ERROR · 1 INFO** (código de salida 0; con `--strict`, 1). Determinista: dos ejecuciones dan resultados idénticos.
 
 | # | ID | Caso | Estado hoy |
@@ -251,8 +272,8 @@ Cambios respecto al plan original: se añade un **Bloque 1 nuevo y urgente** (de
 | # | Bloque | Resuelve | Archivos | Verificación | Depende de |
 |---|---|---|---|---|---|
 | 0 | Red de seguridad | — | `tests/` | Hecho (Bloques 0 y 0b) | — |
-| **1** | **Desbloquear la Galería (nuevo, urgente)** | **C-02** | `world.js:100-102` | Casos C-02 ×2 en verde (conectividad: 0 inalcanzables no secretas). Recorrido manual del N1 completo | 0 |
-| 2 | Cierre correcto de todos los jefes (antes Bloque 1) | C-01, **A-03**, B-01, **A-06** | `main.js` (`bossDefeated`, `victory`, `enterRoom`), `expand.js:107, 156-158, 211-232`, `boss.js:12` | Casos C-01 ×7, A-03, B-01 y A-06 en verde | 0 |
+| **1** | **Desbloquear la Galería (nuevo, urgente)** — **hecho (`ee8b5e1`)** | **C-02** | `world.js:100-102` | Casos C-02 ×2 en verde (conectividad: 0 inalcanzables no secretas). Recorrido manual del N1 completo | 0 |
+| 2 | Cierre correcto de todos los jefes (antes Bloque 1) — **hecho (commit «fix(jefes): cierre único…» (Bloque 2))** | C-01, **A-03**, B-01, **A-06** | `main.js` (`bossDefeated`, `victory`, `enterRoom`), `expand.js:107, 156-158, 211-232`, `boss.js:12` | Casos C-01 ×7, A-03, B-01 y A-06 en verde | 0 |
 | 3 | Entrada durante el hit-stop y Sable Cargado (antes Bloque 2) | A-01, **A-05** | `main.js:673`, `player.js:87-116` | Casos A-01a/b/c y A-05 en verde. Manual: combo de 3 golpes y onda cargada | 0 |
 | 4 | Punto seguro robusto (antes Bloque 3) | A-02 | `player.js:255-264` | Caso A-02 en verde | 0 |
 | **5** | **Arenas (nuevo)** | **A-04, M-09** | `world.js:255-262`, `expand.js:111, 213, 338, 408, 477, 512`, `world.js:134, 387`, `main.js:787` | Casos A-04 y M-09 en verde (M-09 según la respuesta a U.7-1) | 0, 2 |

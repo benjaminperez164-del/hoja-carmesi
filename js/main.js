@@ -297,6 +297,8 @@ const COLLECTION = [
   { key: 'shard12', name: 'Fragmento de máscara', where: 'Pétalo Oculto · N6', col: '#ffffff' },
   { key: 'cristal3', name: 'Cristal del Alba', where: 'Puente de Raíces · N6', col: '#ffb020' },
 ];
+// Única fuente de verdad: jefes principales y la pantalla que muestran al caer (los demás son minijefes: solo aviso)
+const MAIN_BOSSES = { guardian: 1, heraldo: 2, oraculo: 3, forjador: 4, tempestad: 5, raiz: 6, ecos: 7 };
 const BOSS_META = [
   { key: 'guardian', name: 'Guardián Hueco', level: 1 },
   { key: 'umbra', name: 'Umbra del Foso', level: 1 },
@@ -522,6 +524,7 @@ const Game = {
   // Reinicia por completo el combate del jefe: puertas abiertas en TODAS las salas, proyectiles fuera,
   // y el jefe se recrea con vida completa en estado previo a la intro (al volver a entrar en su sala).
   resetBossEncounter() {
+    if (this.boss && this.boss.state === 'dying') this.victory(this.boss);
     this.syncDoors();
     this.hazards = [];
     this.slowT = 0;
@@ -617,23 +620,25 @@ const Game = {
     // El jefe queda derrotado desde ya: aunque algo golpeara al jugador durante la animación, no se reinicia
     this.beaten[b.key || 'guardian'] = true; this.slowT = 1.8;
     this.hazards = this.hazards.filter(h => h.persistent); this.player.invulnT = 99;
-    this.syncDoors();
     this.saveGame();
-    sfx('bossDie'); setTimeout(() => sfx('doorOpen'), 700);
+    sfx('bossDie');
   },
+  // Cierre único del combate (todos los jefes al terminar 'dying'): abre puertas y devuelve la vulnerabilidad normal;
+  // los principales muestran su pantalla y los minijefes solo un aviso. Una segunda llamada para el mismo jefe no hace nada.
   victory(b) {
+    if (!b || b.closed) return;
+    b.closed = true; b.dead = true;
     this.player.invulnT = 0;
-    this.syncDoors();
-    const key = b && b.key;
-    const MAIN = { guardian: 1, heraldo: 2, oraculo: 3, forjador: 4, tempestad: 5, raiz: 6 };
+    this.syncDoors(); sfx('doorOpen');
+    const key = b.key;
+    if (!MAIN_BOSSES[key]) { this.toast((b.name || 'Enemigo') + ' derrotado', 2.5); return; }
     if (key === 'ecos') {
       this.state = 'levelclear'; this.clearT = 0; this.clearLevel = 7;
       const cur = Save.load() || { v: 1 };
       Save.write(Object.assign(cur, { v: 1, completed: true, beaten: Object.assign({}, cur.beaten || {}, this.beaten), secrets: [...this.secrets], playTime: this.playTime }));
       return;
     }
-    if (!MAIN[key]) return;
-    this.state = 'levelclear'; this.clearT = 0; this.clearLevel = MAIN[key];
+    this.state = 'levelclear'; this.clearT = 0; this.clearLevel = MAIN_BOSSES[key];
     if (key === 'oraculo' && !this.secrets.has('cargado')) {
       const o = this.room.objs.find(o => o.type === 'cargado');
       const x = o ? this.room.px + o.tx * TILE : (b.cx || this.player.cx);

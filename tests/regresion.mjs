@@ -204,7 +204,8 @@ const CASOS = [
     { jefe: 'tempestad', nombre: 'Tempestad', sala: 'ojoTormenta', tx: 28, ty: 12, dir: 'right', previos: [], fin: 'levelclear' },
     { jefe: 'raiz', nombre: 'Raíz Primigenia', sala: 'camaraRaiz', tx: 24, ty: 12, dir: 'right', previos: ['ecos'], fin: 'levelclear' },
     { jefe: 'ecos', nombre: 'Ecos (final)', sala: 'abismoFinal', tx: 9, ty: 12, dir: 'left', previos: ['raiz'], fin: 'levelclear', completado: true },
-  ].map(cfg => ({ id: 'C-01', nombre: `Salir de la sala durante 'dying' · ${cfg.nombre}`, pendiente: 'C-01', async run(pg) {
+  ].map(cfg => ({ id: 'C-01', nombre: `Puertas cerradas en 'dying' y cierre · ${cfg.nombre}`, pendiente: null, async run(pg) {
+    // Decisión: no se puede salir durante 'dying'. Al terminar la muerte: pantalla del jefe, puertas abiertas, invulnT normal.
     const r = await pg.ejecutar(cfg => {
       const G = GAME.Game;
       GAME.noEnemies = true;                     // gancho existente: aísla el caso de enemigos en las salas vecinas
@@ -218,33 +219,101 @@ const CASOS = [
       while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
       const b = G.boss;
       if (!b || b.state !== 'idle') return { prep: false, motivo: `el jefe no llegó a 'idle' tras la intro (estado: ${b ? b.state : 'sin jefe'})` };
-      b.hp = 1; b.hurt(1, p, 'g1');              // golpe final por la vía real: Boss.hurt -> Game.bossDefeated
+      b.hp = 1; b.hurt(1, p, 'g1');              // golpe final por la vía real: hurt -> Game.bossDefeated
       if (b.state !== 'dying' || !G.beaten[cfg.jefe]) return { prep: false, motivo: `tras el golpe final el jefe está en '${b.state}' y beaten.${cfg.jefe}=${!!G.beaten[cfg.jefe]}` };
-      const sala = G.room.id, estados = new Set([G.state]);
-      let salio = null, puertaCerrada = false, soloPlay = true;
+      const room = G.room, sala = room.id, estados = new Set([G.state]);
+      // puerta del lado hacia el que camina el jugador
+      const puerta = room.doors.reduce((a, d) => (cfg.dir === 'right' ? d.x > a.x : d.x < a.x) ? d : a);
+      let salioEnDying = false, distMin = 99, puertaSiempreCerrada = true, pasosDying = 0, abiertasAlCerrar = null, soloPlay = true;
       for (let i = 0; i < 900; i++) {
-        if (G.boss && G.boss.state === 'dying' && G.room.id === sala && G.room.doors.some(d => d.active)) puertaCerrada = true;
-        GAME.step(1, (!salio && soloPlay) ? [cfg.dir] : []);   // camina hacia la salida hasta salir o hasta que cambie el estado
+        const muriendo = G.boss === b && !b.dead;
+        if (muriendo) {
+          pasosDying++;
+          const borde = cfg.dir === 'right' ? (p.x + p.w) / 16 - room.ox : p.x / 16 - room.ox;
+          distMin = Math.min(distMin, Math.abs((cfg.dir === 'right' ? puerta.x : puerta.x + puerta.w) - borde));
+          if (!puerta.active) puertaSiempreCerrada = false;
+        }
+        GAME.step(1, soloPlay ? [cfg.dir] : []);      // empuja hacia la salida hasta que aparezca la pantalla del jefe
         estados.add(G.state); if (G.state !== 'play') soloPlay = false;
-        if (!salio && G.room.id !== sala) salio = i + 1;
+        if (muriendo && G.room.id !== sala) salioEnDying = true;
+        if (abiertasAlCerrar === null && b.dead) abiertasAlCerrar = room.doors.every(d => !d.active);
       }
       let completed;
       try { completed = (JSON.parse(localStorage.getItem('hojaCarmesi.save.v1')) || {}).completed; } catch (e) {}
-      return { prep: true, salio, puertaCerrada, estados: [...estados], invulnT: +G.player.invulnT.toFixed(2), completed: completed === undefined ? 'undefined' : completed, salaFinal: G.room.id };
+      return { prep: true, salioEnDying, distMin: +distMin.toFixed(2), puertaSiempreCerrada, pasosDying, abiertasAlCerrar, estados: [...estados],
+        invulnT: +G.player.invulnT.toFixed(2), completed: completed === undefined ? 'undefined' : completed };
     }, cfg);
     if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
-    // Escenario válido si el jugador salió durante 'dying' o si una puerta se lo impidió (corrección alternativa: puertas cerradas hasta victory)
-    const prep = { ok: !!r.salio || r.puertaCerrada, motivo: 'el jugador no salió de la sala y ninguna puerta estaba cerrada durante dying' };
-    const okEstado = r.estados.includes(cfg.fin), okInv = r.invulnT <= 1.3, okComp = !cfg.completado || r.completed === true;
-    return {
-      prep, ok: okEstado && okInv && okComp, razon: !!r.salio && !okEstado,
-      detalle: `estados vistos {${r.estados.join(', ')}} (esperado incluir ${cfg.fin}); invulnT ${r.invulnT} (esperado ≤ 1,3)` +
-        (cfg.completado ? `; completed ${r.completed} (esperado true)` : '') +
-        `; ${r.salio ? `salió en el paso ${r.salio} hacia ${r.salaFinal}` : 'puerta cerrada durante dying'}`,
-    };
+    // Escenario válido solo si el jugador llegó a empujar la puerta mientras el jefe moría
+    const prep = { ok: r.pasosDying > 0 && r.distMin <= 0.6, motivo: `el jugador no llegó a la puerta durante dying (distancia mínima ${r.distMin} baldosas, ${r.pasosDying} pasos de dying)` };
+    const okEstado = r.estados.includes(cfg.fin), okComp = !cfg.completado || r.completed === true;
+    const ok = !r.salioEnDying && r.puertaSiempreCerrada && okEstado && r.abiertasAlCerrar === true && r.invulnT <= 1.3 && okComp;
+    return { prep, ok,
+      detalle: `durante dying (${r.pasosDying} pasos): llegó a la puerta, salió=${r.salioEnDying}, puerta cerrada=${r.puertaSiempreCerrada}; al cerrar: puertas abiertas=${r.abiertasAlCerrar}; ` +
+        `estados {${r.estados.join(', ')}} (esperado incluir ${cfg.fin}); invulnT ${r.invulnT} (≤ 1,3)` + (cfg.completado ? `; completed ${r.completed} (esperado true)` : '') };
   } })),
 
-  { id: 'B-01', nombre: "Golpear al Guardián en 'dying' no da energía", pendiente: 'B-01', async run(pg) {
+  { id: 'C-01', nombre: "Defensa: cambio de sala forzado con un jefe en 'dying'", pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      GAME.noEnemies = true;
+      G.newGame(); GAME.warp('guardian', 22, 15); G.state = 'play';
+      const p = G.player; p.sitting = false; p.maxHp = p.hp = 20;
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const b = G.boss;
+      if (!b || b.state !== 'idle') return { prep: false, motivo: `el jefe no llegó a 'idle' (${b ? b.state : 'sin jefe'})` };
+      b.hp = 1; b.hurt(1, p, 'g1');
+      if (b.state !== 'dying') return { prep: false, motivo: `el jefe no entró en 'dying' (${b.state})` };
+      // Instrumentación del arnés (no del juego): cuenta los cierres con efecto observable
+      const orig = G.victory, foto = () => JSON.stringify([G.state, G.toasts.length, G.player.invulnT > 1.3, G.clearT]);
+      let llamadas = 0, efectivos = 0;
+      G.victory = function (x) { llamadas++; const antes = foto(); const res = orig.call(this, x); if (foto() !== antes) efectivos++; return res; };
+      try {
+        GAME.warp('mirador', 5, 15);              // sale de la sala con el jefe aún muriendo
+        const trasWarp = { efectivos, estado: G.state, invulnT: +G.player.invulnT.toFixed(2), puertasGuardian: GAME.World.byId.guardian.doors.every(d => !d.active) };
+        GAME.step(60, []);
+        const antes = foto(); G.victory(b); const segundaSinEfecto = foto() === antes;   // segunda llamada explícita
+        return { prep: true, trasWarp, efectivosFinal: efectivos, llamadas, segundaSinEfecto, beaten: !!G.beaten.guardian };
+      } finally { G.victory = orig; }
+    });
+    if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
+    const t = r.trasWarp;
+    const ok = t.efectivos === 1 && r.efectivosFinal === 1 && r.segundaSinEfecto && t.estado === 'levelclear' && t.invulnT <= 1.3 && t.puertasGuardian && r.beaten;
+    return { prep: { ok: true }, ok,
+      detalle: `cierres con efecto: ${t.efectivos} al cambiar de sala, ${r.efectivosFinal} tras 60 pasos (llamadas: ${r.llamadas}); segunda llamada sin efecto=${r.segundaSinEfecto}; ` +
+        `estado ${t.estado}, invulnT ${t.invulnT}, puertas del Guardián abiertas=${t.puertasGuardian} (esperado: 1, 1, true, levelclear, ≤ 1,3, true)` };
+  } },
+
+  { id: 'C-01', nombre: "Arena Áurea: salir por el hueco durante 'dying'", pendiente: null, async run(pg) {
+    // Cubre A-04 hasta que se cierre el hueco bajo las puertas (Bloque 5). Cuando ya no se pueda salir, este caso no aplica.
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, W = GAME.World;
+      GAME.noEnemies = true;
+      G.newGame(); GAME.warp('arenaAureo', 27, 15); G.state = 'play';
+      const p = G.player; p.sitting = false; p.maxHp = p.hp = 30;
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const b = G.boss;
+      if (!b || b.state !== 'idle') return { prep: false, motivo: `el jefe no llegó a 'idle' (${b ? b.state : 'sin jefe'})` };
+      b.hp = 1; b.hurt(1, p, 'g1');
+      if (b.state !== 'dying') return { prep: false, motivo: `el jefe no entró en 'dying' (${b.state})` };
+      const orig = G.victory, foto = () => JSON.stringify([G.state, G.toasts.length, G.player.invulnT > 1.3]);
+      let efectivos = 0, aviso = null;
+      G.victory = function (x) { const antes = foto(); const res = orig.call(this, x); if (foto() !== antes) { efectivos++; aviso = (G.toasts[G.toasts.length - 1] || {}).text || null; } return res; };
+      try {
+        let salioEnDying = false;
+        for (let i = 0; i < 400; i++) { const muriendo = G.boss === b && !b.dead; GAME.step(1, ['right']); if (G.room.id !== 'arenaAureo') { salioEnDying = muriendo; break; } }
+        GAME.step(120, []);
+        return { prep: salioEnDying, motivo: 'el jugador no pudo salir por el hueco durante dying: si A-04 ya está corregido, este caso no aplica (elimínalo)',
+          efectivos, aviso, estado: G.state, invulnT: +p.invulnT.toFixed(2), puertas: W.byId.arenaAureo.doors.every(d => !d.active), sala: G.room.id };
+      } finally { G.victory = orig; }
+    });
+    if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
+    const ok = r.efectivos === 1 && /derrotado/.test(r.aviso || '') && r.estado === 'play' && r.invulnT <= 1.3 && r.puertas;
+    return { prep: { ok: true }, ok,
+      detalle: `salió hacia ${r.sala} durante dying; cierres con efecto: ${r.efectivos}; aviso «${r.aviso}»; estado ${r.estado}; invulnT ${r.invulnT}; puertas abiertas=${r.puertas} (esperado: 1, «… derrotado», play, ≤ 1,3, true)` };
+  } },
+
+  { id: 'B-01', nombre: "Golpear al Guardián en 'dying' no da energía", pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game;
       GAME.noEnemies = true;
@@ -269,6 +338,29 @@ const CASOS = [
     });
     if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
     return { prep: { ok: true }, ok: r.energia === 0, razon: r.energia > 0, detalle: `energía tras golpear al jefe en dying: ${r.energia} (esperado 0)` };
+  } },
+
+  { id: 'B-01', nombre: "La onda del Sable no da energía a un jefe en 'dying'", pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      GAME.noEnemies = true;
+      G.newGame(); G.secrets.add('cargado'); G.applyUpgrades(); GAME.warp('guardian', 22, 15); G.state = 'play';
+      const p = G.player; p.sitting = false; p.maxHp = p.hp = 20;
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const b = G.boss;
+      if (!b || b.state !== 'idle') return { prep: false, motivo: `el jefe no llegó a 'idle' (${b ? b.state : 'sin jefe'})` };
+      b.hp = 1; b.hurt(1, p, 'g1');
+      if (b.state !== 'dying') return { prep: false, motivo: `el jefe no entró en 'dying' (${b.state})` };
+      // jugador a 3 baldosas del jefe, mirando hacia él; lanza la onda (la misma función que dispara soltar la carga)
+      p.soul = 0; p.atk = null; p.atkCd = 0; p.x = b.x - p.w - 48; p.y = b.y + b.h - p.h; p.vx = p.vy = 0; p.facing = 1;
+      p.fireWave(G);
+      const onda = G.hazards[G.hazards.length - 1];
+      let golpeo = false, enDying = true;
+      for (let i = 0; i < 90 && onda && !golpeo; i++) { GAME.step(1, []); if (onda.hit && onda.hit.has(b)) { golpeo = true; enDying = b.state === 'dying'; } }
+      return { prep: !!onda && golpeo && enDying, motivo: !onda ? 'no se creó la onda' : !golpeo ? 'la onda no tocó al jefe' : 'el jefe ya no estaba en dying', energia: p.soul };
+    });
+    if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
+    return { prep: { ok: true }, ok: r.energia === 0, detalle: `energía tras impactar la onda en el jefe en dying: ${r.energia} (esperado 0)` };
   } },
 
   { id: 'A-01a', nombre: 'Pulsar salto en el 2.º paso del hit-stop', pendiente: 'A-01', async run(pg) {
@@ -502,7 +594,7 @@ const CASOS = [
         `juego con Sable: sello roto=${r.selloRoto}, shard4=${r.shard4} (esperado: false/true; false/false; true/true)` };
   } },
 
-  { id: 'A-03', nombre: 'Invulnerabilidad tras vencer a los 6 minijefes', pendiente: 'A-03', async run(pg) {
+  { id: 'A-03', nombre: 'Invulnerabilidad tras vencer a los 6 minijefes', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, W = GAME.World, res = [];
       GAME.noEnemies = true;
@@ -588,7 +680,7 @@ const CASOS = [
       detalle: `tras pulsar en el hit-stop: tajo=${r.ataco}, carga iniciada=${r.cargo} (esperado: tajo)` };
   } },
 
-  { id: 'A-06', nombre: 'Tempestad: avisos con la misma duración que otros jefes', pendiente: 'A-06', async run(pg) {
+  { id: 'A-06', nombre: 'Tempestad: avisos con la misma duración que otros jefes', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, out = {};
       // se entra por x=10: lejos del jefe (x=16) y más allá de cualquier disparador razonable

@@ -9,7 +9,7 @@ class Boss extends Enemy {
     this.contact = 1;
   }
   hurt(dmg, player, type) {
-    if (this.state === 'dormant' || this.state === 'intro' || this.state === 'dying') return;
+    if (this.state === 'dormant' || this.state === 'intro' || this.state === 'dying') return false;
     this.hp -= dmg; this.flashT = 0.1; sfx('hit');
     if (!this.phase2 && this.hp <= this.maxHp / 2) {
       this.phase2 = true; this.set('roar'); FX.shake(6, 0.6);

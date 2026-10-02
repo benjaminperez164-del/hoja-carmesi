@@ -75,8 +75,11 @@ Antes de dar por bueno un resultado, cada caso **verifica su preparación**: que
 | Caso | Hallazgo | Comprueba |
 |---|---|---|
 | HUMO | — | Todas las salas (59 en `c54d4d7`): entrar, simular 3 s y dibujar, con 0 excepciones y 0 errores de consola. Si el número de salas cambia, el detalle lo avisa (constante `SALAS_AUDITADAS`) |
-| C-01 ×7 | C-01 | Guardián, Heraldo, Oráculo, Forjador, Tempestad, Raíz y Ecos: tras el golpe final, el jugador camina hacia la salida durante `dying`. Se espera pasar por `levelclear`, `invulnT ≤ 1,3` y, con Ecos (final), `completed: true` en el guardado. Acepta las dos correcciones posibles (puertas cerradas hasta la victoria, o victoria al salir de la sala) |
+| C-01 ×7 | C-01 | Guardián, Heraldo, Oráculo, Forjador, Tempestad, Raíz y Ecos: tras el golpe final, el jugador empuja la puerta durante `dying`. Se espera que **no pueda salir** (puerta cerrada todo el tiempo), que al terminar la muerte aparezca `levelclear`, que las puertas se abran, `invulnT ≤ 1,3` y, con Ecos, `completed: true` en el guardado |
+| C-01 (defensa) | C-01 | Cambio de sala forzado (`GAME.warp`) con el Guardián en `dying`: el cierre se ejecuta **exactamente una vez** (se cuentan los cierres con efecto observable) y una segunda llamada explícita a `victory()` no cambia nada |
+| C-01 (Arena Áurea) | C-01 | Salir por el hueco bajo la puerta (A-04, aún abierto) con el minijefe en `dying`: el cierre se ejecuta una vez, con aviso «… derrotado», puertas abiertas y `invulnT ≤ 1,3`. Cuando se corrija A-04 dará ERROR de preparación: entonces hay que eliminarlo |
 | B-01 | B-01 | Golpear al Guardián en `dying` no da energía |
+| B-01 (onda) | B-01 | La onda del Sable Cargado que impacta en un jefe en `dying` no da energía |
 | A-01a | A-01 | Pulsar salto en el 2.º paso del hit-stop hace saltar al jugador cuando termina el hit-stop |
 | A-01b | A-01 | Soltar el salto durante el hit-stop recorta la altura: debe quedar por debajo del punto medio entre el salto completo y el salto soltado al mismo tiempo sin hit-stop |
 | A-01c | A-01 | Con el Sable Cargado, una pulsación de ATACAR dentro del hit-stop produce un tajo |
@@ -103,7 +106,7 @@ Los casos colocan al jugador lejos de los disparadores de los jefes y de los ban
    … pendiente: 'C-01', async run(pg) {    // antes
    … pendiente: null, async run(pg) {      // después
    ```
-   Hay que cambiarlo en todos los casos de ese ID: C-01 tiene siete casos generados desde una sola definición; A-01 tiene tres (A-01a, A-01b y A-01c).
+   Hay que cambiarlo en todos los casos de ese ID: C-01 tiene siete casos generados desde una sola definición más dos casos aparte; A-01 tiene tres (A-01a, A-01b y A-01c).
 4. Vuelve a ejecutar: esos casos deben salir como **PASA**, y desde ese momento cualquier fallo en ellos es una regresión (FALLA).
 5. Cuando no quede ninguna marca pendiente, `--strict` debería salir con código 0.
 
