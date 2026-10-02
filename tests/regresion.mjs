@@ -371,37 +371,65 @@ const CASOS = [
         `recordSafe ${r.safeEnBloque ? `guardó el punto seguro sobre el bloque de fase (${r.stx},${r.sty})` : `dejó el punto seguro en (${r.stx},${r.sty}), fuera del bloque`}` };
   } },
 
-  { id: 'C-02', nombre: 'Mapa: todas las salas alcanzables desde el inicio', pendiente: 'C-02', async run(pg) {
-    // Inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global, sin gravedad: condición NECESARIA de alcanzabilidad.
-    // Puertas y bloques de fase cuentan como paso; muros rompibles y sellos, como sólidos (pase 1) o como paso (pase 2).
+  { id: 'C-02', nombre: 'Mapa: progresión completa sin sellos en la ruta', pendiente: null, async run(pg) {
+    // Inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global, SIN gravedad (condición necesaria de alcanzabilidad),
+    // repetido por etapas de la historia hasta un punto fijo:
+    //  - Puertas de salida de un jefe: cerradas hasta que se alcanza su sala (se asume que el jefe se vence). Puertas de bloqueo: abiertas.
+    //  - Muros agrietados: siempre rompibles (solo piden el tajo normal). Bloques de fase: transitables (hay cristal para alternarlos).
+    //  - Sellos de cristal: solo transitables con el Sable Cargado, que se obtiene al vencer al Oráculo (Salto Celeste: Heraldo).
+    // Comprobaciones: (1) todas las salas no secretas se alcanzan por progresión; (2) al final, todas las salas;
+    // (3) con todo desbloqueado pero los sellos INTACTOS, siguen alcanzables todas las no secretas: ningún sello está en una ruta necesaria.
     const r = await pg.ejecutar(() => {
-      const W = GAME.World, rooms = W.rooms, cells = new Map(), owner = new Map(), solapes = new Set(), rompible = new Set();
+      const W = GAME.World, rooms = W.rooms, cells = new Map(), owner = new Map(), solapes = new Set();
+      const sello = new Set(), puertaSalida = new Map(), jefeDeSala = new Map();
+      const GANA = { heraldo: 'celeste', oraculo: 'cargado' };
       for (const r of rooms) {
-        for (const w of r.walls) for (let j = w.y; j < w.y + w.h; j++) for (let i = w.x; i < w.x + w.w; i++) rompible.add((r.ox + i) + ',' + (r.oy + j));
+        for (const w of r.walls) if (w.charge) for (let j = w.y; j < w.y + w.h; j++) for (let i = w.x; i < w.x + w.w; i++) sello.add((r.ox + i) + ',' + (r.oy + j));
+        for (const d of r.doors) if (d.kind === 'exit') for (let j = d.y; j < d.y + d.h; j++) for (let i = d.x; i < d.x + d.w; i++) puertaSalida.set((r.ox + i) + ',' + (r.oy + j), d.boss);
+        const b = r.objs.find(o => o.type === 'boss'); if (b) jefeDeSala.set(r.id, b.boss);
         for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
           const k = (r.ox + x) + ',' + (r.oy + y);
           if (owner.has(k)) { solapes.add(owner.get(k) + '/' + r.id); continue; }
-          owner.set(k, r.id); cells.set(k, r.phaseKeys.has(x + ',' + y) ? 0 : r.grid[y][x]);
+          owner.set(k, r.id); cells.set(k, r.phaseKeys.has(x + ',' + y) ? 0 : r.grid[y][x]);   // los muros rompibles ya son 1 en la rejilla
         }
       }
-      const libre = (x, y, rb) => { const k = x + ',' + y; if (!cells.has(k)) return false; return cells.get(k) !== 1 || (rb && rompible.has(k)); };
-      const inalcanzables = rb => {
+      const esMuroAgrietado = new Set(); for (const r of rooms) for (const w of r.walls) if (!w.charge) for (let j = w.y; j < w.y + w.h; j++) for (let i = w.x; i < w.x + w.w; i++) esMuroAgrietado.add((r.ox + i) + ',' + (r.oy + j));
+      const flood = (vencidos, habil, sellosRompibles) => {
+        const libre = (x, y) => { const k = x + ',' + y; if (!cells.has(k)) return false;
+          if (puertaSalida.has(k) && !vencidos.has(puertaSalida.get(k))) return false;
+          if (sello.has(k)) return sellosRompibles && habil.has('cargado');
+          if (esMuroAgrietado.has(k)) return true;
+          return cells.get(k) !== 1; };
         const s = W.byId.santuario, x0 = s.ox + 14, y0 = s.oy + 14, seen = new Set([x0 + ',' + y0]), q = [[x0, y0]];
         while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
-          if (!seen.has(k) && libre(nx, ny, rb) && libre(nx, ny - 1, rb)) { seen.add(k); q.push([nx, ny]); } } }
-        const alc = new Set(); for (const k of seen) alc.add(owner.get(k));
-        return rooms.filter(r => !alc.has(r.id)).map(r => ({ id: r.id, secreta: !!r.secret }));
+          if (!seen.has(k) && libre(nx, ny) && libre(nx, ny - 1)) { seen.add(k); q.push([nx, ny]); } } }
+        const alc = new Set(); for (const k of seen) alc.add(owner.get(k)); return alc;
       };
-      return { salas: rooms.length, solapes: [...solapes], sinRomper: inalcanzables(false), rompiendo: inalcanzables(true) };
+      const vencidos = new Set(), habil = new Set(), etapas = [], primeraEtapa = new Map();
+      for (let etapa = 0; etapa < 50; etapa++) {
+        const alc = flood(vencidos, habil, true);
+        for (const id of alc) if (!primeraEtapa.has(id)) primeraEtapa.set(id, etapa);
+        const nuevos = [...alc].map(id => jefeDeSala.get(id)).filter(k => k && !vencidos.has(k));
+        etapas.push({ etapa, salas: alc.size, vence: nuevos });
+        if (!nuevos.length) break;
+        for (const k of nuevos) { vencidos.add(k); if (GANA[k]) habil.add(GANA[k]); }
+      }
+      const final = flood(vencidos, habil, true), sinSellos = flood(vencidos, habil, false);
+      const sable = etapas.findIndex(e => e.vence.includes('oraculo'));
+      return { salas: rooms.length, solapes: [...solapes], etapas: etapas.length, etapaSable: sable,
+        porProgresion: rooms.filter(r => !r.secret && !primeraEtapa.has(r.id)).map(r => r.id),
+        alFinal: rooms.filter(r => !final.has(r.id)).map(r => r.id),
+        dependenDeSello: rooms.filter(r => !r.secret && !sinSellos.has(r.id)).map(r => r.id),
+        jefes: vencidos.size };
     });
-    const noSecretas = r.sinRomper.filter(x => !x.secreta);
-    const ok = !r.solapes.length && !noSecretas.length && !r.rompiendo.length;
-    const lista = a => a.length ? `${a.length} (${a.slice(0, 4).map(x => x.id).join(', ')}${a.length > 4 ? ', …' : ''})` : '0';
-    return { prep: { ok: r.salas > 0, motivo: 'sin salas' }, ok, razon: noSecretas.some(x => x.id === 'viaSombra'),
-      detalle: `inalcanzables sin romper sellos (no secretas): ${lista(noSecretas)}; rompiendo todo: ${lista(r.rompiendo)}; solapes: ${r.solapes.length} (esperado 0 / 0 / 0)` };
+    const lista = a => a.length ? `${a.length} (${a.slice(0, 4).join(', ')}${a.length > 4 ? ', …' : ''})` : '0';
+    const ok = !r.solapes.length && !r.porProgresion.length && !r.alFinal.length && !r.dependenDeSello.length;
+    return { prep: { ok: r.salas > 0, motivo: 'sin salas' }, ok,
+      detalle: `${r.etapas} etapas, ${r.jefes} jefes vencidos, Sable ${r.etapaSable >= 0 ? `en la etapa ${r.etapaSable + 1}` : "no obtenido"}; no secretas inalcanzables por progresión: ${lista(r.porProgresion)}; ` +
+        `inalcanzables al final: ${lista(r.alFinal)}; no secretas que dependen de un sello: ${lista(r.dependenDeSello)}; solapes: ${r.solapes.length} (esperado 0 en todo)` };
   } },
 
-  { id: 'C-02', nombre: 'Del Pozo del Eco a la Galería Suspendida', pendiente: 'C-02', async run(pg) {
+  { id: 'C-02', nombre: 'Del Pozo del Eco a la Galería Suspendida', pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, gal = GAME.World.byId.galeria;
       GAME.noEnemies = true;
@@ -422,6 +450,56 @@ const CASOS = [
     const ok = r.maxX >= 8 || r.salas.includes('viaSombra');
     return { prep, ok, razon: r.maxX <= 1.5,
       detalle: `borde derecho máximo dentro de la Galería: baldosa ${r.maxX} (esperado ≥ 8, pasada la repisa de entrada); salas recorridas: ${r.salas.join(' → ')}` };
+  } },
+
+  { id: 'C-02', nombre: 'Cámara del Rayo: solo con el Sable Cargado', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, W = GAME.World, gal = W.byId.galeria, out = {};
+      const muro = gal.walls.find(w => w.id === 'selloRayo'), sh = gal.objs.find(o => o.type === 'shard4');
+      if (!muro || !muro.charge || !sh) return { prep: false, motivo: `sello selloRayo=${!!muro}, de cristal=${!!(muro && muro.charge)}, shard4=${!!sh}` };
+      // 1) Análisis: con todas las puertas abiertas y muros agrietados rotos, ¿se llega a la celda de shard4 sin romper el sello?
+      const celda = (gal.ox + Math.floor(sh.tx)) + ',' + (gal.oy + sh.ty - 1);
+      const tipo = (x, y, conSello) => { const rr = W.rooms.find(q => x >= q.ox && y >= q.oy && x < q.ox + q.w && y < q.oy + q.h); if (!rr) return 1;
+        const lx = x - rr.ox, ly = y - rr.oy, w = rr.walls.find(w => lx >= w.x && ly >= w.y && lx < w.x + w.w && ly < w.y + w.h);
+        if (w) return (w.charge && !conSello) ? 1 : 0; if (rr.phaseKeys.has(lx + ',' + ly)) return 0; return rr.grid[ly][lx]; };
+      const llega = conSello => { const s = W.byId.santuario, x0 = s.ox + 14, y0 = s.oy + 14, seen = new Set([x0 + ',' + y0]), q = [[x0, y0]];
+        while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+          if (!seen.has(k) && tipo(nx, ny, conSello) !== 1 && tipo(nx, ny - 1, conSello) !== 1) { seen.add(k); q.push([nx, ny]); } } }
+        return seen.has(celda); };
+      out.analisisSinSable = llega(false); out.analisisConSable = llega(true);
+      GAME.noEnemies = true;
+      // 2) Juego sin Sable (con Salto Celeste): tajos normales y saltos contra el sello desde la repisa
+      G.newGame(); G.secrets.add('celeste'); G.applyUpgrades();
+      GAME.warp('galeria', 6.5, 7); G.state = 'play'; let p = G.player; p.sitting = false; GAME.step(5, []);
+      out.sinSableInicio = { enSuelo: p.onGround, x: +(p.x / 16 - gal.ox).toFixed(2) };
+      const gestos = [['left', 'attack'], ['jump'], ['jump', 'attack'], ['left', 'jump'], ['up', 'attack'], ['left', 'jump', 'attack']];
+      for (const g of gestos) for (let i = 0; i < 40; i++) { GAME.step(1, i % 10 < 3 ? g : (i % 10 < 6 ? ['jump'] : [])); }
+      out.sinSable = { sello: G.secrets.has('selloRayo'), shard4: G.secrets.has('shard4') };
+      // 3) Juego con Sable: cargar mirando al oeste, saltar desde la repisa y soltar cerca del ápice; luego entrar con salto (y Salto Celeste)
+      G.newGame(); G.secrets.add('celeste'); G.secrets.add('cargado'); G.applyUpgrades();
+      GAME.warp('galeria', 6.5, 7); G.state = 'play'; p = G.player; p.sitting = false; GAME.step(5, []);
+      GAME.step(1, ['left']); GAME.step(3, []);                      // mirar al oeste sin salir de la repisa
+      out.conSableInicio = { enSuelo: p.onGround, mira: p.facing, tiene: !!p.hasCharge };
+      GAME.step(1, ['attack']); GAME.step(45, ['attack']);           // carga (≥ 0,7 s)
+      out.cargaLista = p.charging && p.chargeT >= 0.7;
+      GAME.step(1, ['attack', 'jump']); GAME.step(18, ['attack', 'jump']);   // salto manteniendo la carga
+      GAME.step(1, ['jump']);                                         // suelta ATACAR cerca del ápice → onda
+      GAME.step(40, []);
+      out.selloRoto = G.secrets.has('selloRayo');
+      for (let intento = 0; intento < 3 && !G.secrets.has('shard4'); intento++) {
+        GAME.step(1, ['left', 'jump']); GAME.step(14, ['left', 'jump']); GAME.step(1, ['left']);
+        GAME.step(1, ['left', 'jump']); GAME.step(14, ['left', 'jump']); GAME.step(30, ['left']); GAME.step(30, ['right']); GAME.step(30, []);
+      }
+      out.shard4 = G.secrets.has('shard4');
+      return { prep: true, ...out };
+    });
+    if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
+    const prep = { ok: r.sinSableInicio.enSuelo && r.conSableInicio.enSuelo && r.conSableInicio.mira === -1 && r.conSableInicio.tiene && r.cargaLista,
+      motivo: `inicio sin Sable ${JSON.stringify(r.sinSableInicio)}, con Sable ${JSON.stringify(r.conSableInicio)}, carga lista=${r.cargaLista}` };
+    const ok = !r.analisisSinSable && r.analisisConSable && !r.sinSable.sello && !r.sinSable.shard4 && r.selloRoto && r.shard4;
+    return { prep, ok,
+      detalle: `análisis: shard4 alcanzable sin Sable=${r.analisisSinSable}, con Sable=${r.analisisConSable}; juego sin Sable: sello roto=${r.sinSable.sello}, shard4=${r.sinSable.shard4}; ` +
+        `juego con Sable: sello roto=${r.selloRoto}, shard4=${r.shard4} (esperado: false/true; false/false; true/true)` };
   } },
 
   { id: 'A-03', nombre: 'Invulnerabilidad tras vencer a los 6 minijefes', pendiente: 'A-03', async run(pg) {

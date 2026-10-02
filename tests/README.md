@@ -81,8 +81,9 @@ Antes de dar por bueno un resultado, cada caso **verifica su preparación**: que
 | A-01b | A-01 | Soltar el salto durante el hit-stop recorta la altura: debe quedar por debajo del punto medio entre el salto completo y el salto soltado al mismo tiempo sin hit-stop |
 | A-01c | A-01 | Con el Sable Cargado, una pulsación de ATACAR dentro del hit-stop produce un tajo |
 | A-02 | A-02 | Puente de las Fases: el jugador está de pie sobre un bloque azul (con un punto seguro previo legítimo en el pilar) y la fase cambia. Como mucho 1 golpe de pinchos en 10 s y el HP debe estabilizarse |
-| C-02 (mapa) | C-02 | **Conectividad del mapa:** inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global desde el banco inicial, sin gravedad. Sin romper sellos ni muros, solo pueden quedar inalcanzables salas secretas; rompiéndolos, ninguna; y no puede haber salas solapadas. Es una condición necesaria: protege contra cualquier sala nueva que corte el camino |
-| C-02 (juego) | C-02 | Desde la cornisa de salida del Pozo del Eco, con todas las habilidades, el jugador pasa la repisa de entrada de la Galería Suspendida |
+| C-02 (mapa) | C-02 | **Progresión del mapa.** Inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global desde el banco inicial, sin gravedad, repetido por etapas hasta un punto fijo. Las puertas de salida de cada jefe están cerradas hasta que se alcanza su sala; los muros agrietados se rompen siempre; los sellos de cristal solo con el Sable, que se obtiene al vencer al Oráculo. Exige: (1) todas las salas no secretas alcanzables por progresión; (2) todas las salas al final; (3) con todo desbloqueado pero los sellos intactos, todas las no secretas siguen alcanzables (ningún sello en una ruta necesaria); (4) sin solapes. Condición necesaria: no modela alturas de salto |
+| C-02 (juego) | C-02 | Desde la cornisa de salida del Pozo del Eco, el jugador pasa la repisa de entrada de la Galería Suspendida |
+| C-02 (alcoba) | C-02 | Cámara del Rayo: sin el Sable, la celda de shard4 es inalcanzable (análisis) y en el juego ni tajos ni saltos rompen el sello; con el Sable, la onda lanzada en un salto desde la repisa rompe el sello y shard4 se recoge |
 | A-03 | A-03 | Los 6 minijefes: 10 s después de vencerlos sin salir de su sala, `invulnT ≤ 1,3` |
 | A-04 | A-04 | **Arenas que encierran:** con las puertas activas, ninguna de las arenas de jefe deja salir (análisis por inundado); y en la Arena Áurea, con el combate activo, el jugador no puede salir caminando |
 | A-05 | A-05 | Con el Sable Cargado, un toque de ATACAR (6 pasos) produce el tajo en ≤ 2 pasos, como sin el Sable |
@@ -102,7 +103,7 @@ Los casos colocan al jugador lejos de los disparadores de los jefes y de los ban
    … pendiente: 'C-01', async run(pg) {    // antes
    … pendiente: null, async run(pg) {      // después
    ```
-   Hay que cambiarlo en todos los casos de ese ID: C-01 tiene siete casos generados desde una sola definición; A-01 tiene tres (A-01a, A-01b y A-01c); C-02 tiene dos (mapa y juego).
+   Hay que cambiarlo en todos los casos de ese ID: C-01 tiene siete casos generados desde una sola definición; A-01 tiene tres (A-01a, A-01b y A-01c).
 4. Vuelve a ejecutar: esos casos deben salir como **PASA**, y desde ese momento cualquier fallo en ellos es una regresión (FALLA).
 5. Cuando no quede ninguna marca pendiente, `--strict` debería salir con código 0.
 

@@ -97,9 +97,9 @@ const ROOM_DEFS = [
     build(b) {
       b.box(); b.clear(0, 3, 1, 4); b.clear(39, 8, 1, 4);
       b.rect(0, 7, 8, 10);             // repisa de entrada
-      // Cámara del Rayo: alcoba sellada a la altura del pecho (solo Sable Cargado)
-      b.rect(1, 2, 5, 1); b.rect(1, 6, 5, 1); b.rect(1, 3, 1, 4);
-      b.chargeseal(6, 3, 1, 4, 'selloRayo'); b.obj('shard4', 3.5, 6);
+      // Cámara del Rayo: alcoba opcional en la esquina alta del fondo, sobre el pasillo de entrada (filas 3-6 libres).
+      // Techo y pared trasera son los muros de la sala; el sello se rompe con la onda del Sable lanzada en un salto desde la repisa.
+      b.rect(1, 3, 4, 1); b.chargeseal(5, 1, 1, 3, 'selloRayo'); b.obj('shard4', 2.5, 3);
       b.rect(8, 16, 26, 1); b.spikes(8, 15, 26);   // foso de pinchos: requiere rebote (pogo)
       b.rect(34, 12, 6, 5);
       b.obj('bench', 36.5, 12);
