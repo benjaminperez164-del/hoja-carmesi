@@ -1,6 +1,6 @@
 # Tests de regresión
 
-Red de seguridad del Bloque 0 de [`AUDITORIA.md`](../AUDITORIA.md). Cada caso reproduce un hallazgo de la auditoría y lleva su ID (C-01, A-01…). Sirve para verificar cada corrección y para detectar regresiones.
+Red de seguridad de los Bloques 0 y 0b de [`AUDITORIA.md`](../AUDITORIA.md), actualizada a `c54d4d7` (59 salas). Cada caso reproduce un hallazgo de la auditoría y lleva su ID (C-01, A-01…). Sirve para verificar cada corrección y para detectar regresiones.
 
 ## Requisitos
 
@@ -32,7 +32,7 @@ $env:CHROME_PATH = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
 CHROME_PATH=/usr/bin/chromium node tests/regresion.mjs
 ```
 
-La ejecución completa tarda unos 4 segundos.
+La ejecución completa tarda unos 10 segundos.
 
 ## Cómo funciona
 
@@ -74,14 +74,24 @@ Antes de dar por bueno un resultado, cada caso **verifica su preparación**: que
 
 | Caso | Hallazgo | Comprueba |
 |---|---|---|
-| HUMO | — | Las 22 salas: entrar, simular 3 s y dibujar, con 0 excepciones y 0 errores de consola |
-| C-01 ×3 | C-01 | Guardián, Heraldo y Oráculo: tras el golpe final, el jugador camina hacia la salida durante `dying`. Se espera pasar por `levelclear` (o `victory`), `invulnT ≤ 1,3` y, con el Oráculo, `completed: true` en el guardado. Acepta las dos correcciones posibles (puertas cerradas hasta la victoria, o victoria al salir de la sala) |
+| HUMO | — | Todas las salas (59 en `c54d4d7`): entrar, simular 3 s y dibujar, con 0 excepciones y 0 errores de consola. Si el número de salas cambia, el detalle lo avisa (constante `SALAS_AUDITADAS`) |
+| C-01 ×7 | C-01 | Guardián, Heraldo, Oráculo, Forjador, Tempestad, Raíz y Ecos: tras el golpe final, el jugador camina hacia la salida durante `dying`. Se espera pasar por `levelclear`, `invulnT ≤ 1,3` y, con Ecos (final), `completed: true` en el guardado. Acepta las dos correcciones posibles (puertas cerradas hasta la victoria, o victoria al salir de la sala) |
 | B-01 | B-01 | Golpear al Guardián en `dying` no da energía |
 | A-01a | A-01 | Pulsar salto en el 2.º paso del hit-stop hace saltar al jugador cuando termina el hit-stop |
 | A-01b | A-01 | Soltar el salto durante el hit-stop recorta la altura: debe quedar por debajo del punto medio entre el salto completo y el salto soltado al mismo tiempo sin hit-stop |
+| A-01c | A-01 | Con el Sable Cargado, una pulsación de ATACAR dentro del hit-stop produce un tajo |
 | A-02 | A-02 | Puente de las Fases: el jugador está de pie sobre un bloque azul (con un punto seguro previo legítimo en el pilar) y la fase cambia. Como mucho 1 golpe de pinchos en 10 s y el HP debe estabilizarse |
-| M-07 | M-07 | Un guardado con `completed: true` lo conserva tras `continueGame()` + `saveGame()` |
+| C-02 (mapa) | C-02 | **Conectividad del mapa:** inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global desde el banco inicial, sin gravedad. Sin romper sellos ni muros, solo pueden quedar inalcanzables salas secretas; rompiéndolos, ninguna; y no puede haber salas solapadas. Es una condición necesaria: protege contra cualquier sala nueva que corte el camino |
+| C-02 (juego) | C-02 | Desde la cornisa de salida del Pozo del Eco, con todas las habilidades, el jugador pasa la repisa de entrada de la Galería Suspendida |
+| A-03 | A-03 | Los 6 minijefes: 10 s después de vencerlos sin salir de su sala, `invulnT ≤ 1,3` |
+| A-04 | A-04 | **Arenas que encierran:** con las puertas activas, ninguna de las arenas de jefe deja salir (análisis por inundado); y en la Arena Áurea, con el combate activo, el jugador no puede salir caminando |
+| A-05 | A-05 | Con el Sable Cargado, un toque de ATACAR (6 pasos) produce el tajo en ≤ 2 pasos, como sin el Sable |
+| A-06 | A-06 | La Tempestad y el Forjador tienen la misma duración (±1 paso) de aviso de disparo y de rugido en fase 2 |
+| M-09 | M-09 | Al reaparecer en un banco situado dentro de una arena, el combate no empieza solo; y sentarse con el jefe activo no lo devuelve a vida llena. **Depende de una decisión de diseño** (AUDITORIA.md, U.7-1): si se decide que el comportamiento actual es intencional, el caso se elimina en vez de quitar la marca |
+| M-07 | M-07 | Un guardado de partida terminada (Ecos vencido, `completed: true`) lo conserva tras `continueGame()` + `saveGame()` |
 | PERF | — | Milisegundos por fotograma (update + draw) en Cascadas. Solo informativo |
+
+Los casos colocan al jugador lejos de los disparadores de los jefes y de los bancos (por ejemplo, el combate se activa desde x=9-10), para que una corrección que mueva un disparador o un banco no invalide la preparación.
 
 ## Al corregir un hallazgo: quitar la marca pendiente
 
@@ -92,7 +102,7 @@ Antes de dar por bueno un resultado, cada caso **verifica su preparación**: que
    … pendiente: 'C-01', async run(pg) {    // antes
    … pendiente: null, async run(pg) {      // después
    ```
-   Hay que cambiarlo en todos los casos de ese ID (C-01 tiene tres casos generados desde una sola definición; A-01 tiene dos: A-01a y A-01b).
+   Hay que cambiarlo en todos los casos de ese ID: C-01 tiene siete casos generados desde una sola definición; A-01 tiene tres (A-01a, A-01b y A-01c); C-02 tiene dos (mapa y juego).
 4. Vuelve a ejecutar: esos casos deben salir como **PASA**, y desde ese momento cualquier fallo en ellos es una regresión (FALLA).
 5. Cuando no quede ninguna marca pendiente, `--strict` debería salir con código 0.
 

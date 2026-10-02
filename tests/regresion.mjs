@@ -24,6 +24,7 @@ const STRICT = ARGS.includes('--strict');
 const JSON_OUT = ARGS.includes('--json');
 const SEED = Number(opt('seed')) || 20261002;
 const SOLO = opt('solo');
+const SALAS_AUDITADAS = 59;   // salas en c54d4d7 (22 en d68ef4d)
 const GANCHOS_REQUERIDOS = ['Game', 'World', 'Input', 'FX', 'setManual', 'step', 'warp'];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -160,7 +161,7 @@ function crearPagina(cdp) {
 // pendiente: '<ID>' marca un rojo esperado: el bug de la auditoría sigue sin corregir. Quitar la marca al corregirlo.
 
 const CASOS = [
-  { id: 'HUMO', nombre: 'Humo: 22 salas × 3 s con dibujo', pendiente: null, async run(pg) {
+  { id: 'HUMO', nombre: `Humo: todas las salas × 3 s con dibujo`, pendiente: null, async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, rooms = GAME.World.rooms, res = [];
       G.newGame();
@@ -185,10 +186,11 @@ const CASOS = [
     });
     const malas = r.res.filter(x => !x.ok);
     const errores = pg.registro.filter(e => e.tipo === 'excepcion' || e.tipo === 'error');
-    const prep = { ok: r.total === 22, motivo: `se esperaban 22 salas y hay ${r.total}` };
+    // El número de salas es informativo: si cambia, el detalle lo indica para revisar el resto de casos
+    const prep = { ok: r.total > 0, motivo: 'el mundo no tiene salas' };
     return {
       prep, ok: malas.length === 0 && errores.length === 0,
-      detalle: `${r.total - malas.length}/${r.total} salas sin excepciones; ${errores.length} errores/excepciones de consola (esperado 0)` +
+      detalle: `${r.total - malas.length}/${r.total} salas sin excepciones${r.total !== SALAS_AUDITADAS ? ` (la auditoría se hizo con ${SALAS_AUDITADAS}: revisa los casos)` : ''}; ${errores.length} errores/excepciones de consola (esperado 0)` +
         (malas.length ? ` · fallan: ${malas.map(m => `${m.sala} (${m.error})`).join('; ')}` : '') +
         (errores.length ? ` · consola: ${errores.slice(0, 3).map(e => e.texto).join(' | ')}` : ''),
     };
@@ -197,11 +199,16 @@ const CASOS = [
   ...[
     { jefe: 'guardian', nombre: 'Guardián', sala: 'guardian', tx: 22, ty: 15, dir: 'right', previos: [], fin: 'levelclear' },
     { jefe: 'heraldo', nombre: 'Heraldo', sala: 'sol', tx: 26, ty: 12, dir: 'right', previos: ['guardian'], fin: 'levelclear' },
-    { jefe: 'oraculo', nombre: 'Oráculo', sala: 'corazon', tx: 9, ty: 12, dir: 'left', previos: ['guardian', 'heraldo'], fin: 'victory' },
+    { jefe: 'oraculo', nombre: 'Oráculo', sala: 'corazon', tx: 9, ty: 12, dir: 'left', previos: ['guardian', 'heraldo'], fin: 'levelclear' },
+    { jefe: 'forjador', nombre: 'Forjador', sala: 'yunque', tx: 24, ty: 12, dir: 'right', previos: [], fin: 'levelclear' },
+    { jefe: 'tempestad', nombre: 'Tempestad', sala: 'ojoTormenta', tx: 28, ty: 12, dir: 'right', previos: [], fin: 'levelclear' },
+    { jefe: 'raiz', nombre: 'Raíz Primigenia', sala: 'camaraRaiz', tx: 24, ty: 12, dir: 'right', previos: ['ecos'], fin: 'levelclear' },
+    { jefe: 'ecos', nombre: 'Ecos (final)', sala: 'abismoFinal', tx: 9, ty: 12, dir: 'left', previos: ['raiz'], fin: 'levelclear', completado: true },
   ].map(cfg => ({ id: 'C-01', nombre: `Salir de la sala durante 'dying' · ${cfg.nombre}`, pendiente: 'C-01', async run(pg) {
     const r = await pg.ejecutar(cfg => {
       const G = GAME.Game;
       GAME.noEnemies = true;                     // gancho existente: aísla el caso de enemigos en las salas vecinas
+      // previos: jefes marcados como vencidos para que la sala vecina no active su propio combate
       G.newGame();
       for (const k of cfg.previos) G.beaten[k] = true;
       G.secrets.add('celeste'); G.applyUpgrades(); G.syncDoors();
@@ -228,11 +235,11 @@ const CASOS = [
     if (!r.prep) return { prep: { ok: false, motivo: r.motivo } };
     // Escenario válido si el jugador salió durante 'dying' o si una puerta se lo impidió (corrección alternativa: puertas cerradas hasta victory)
     const prep = { ok: !!r.salio || r.puertaCerrada, motivo: 'el jugador no salió de la sala y ninguna puerta estaba cerrada durante dying' };
-    const okEstado = r.estados.includes(cfg.fin), okInv = r.invulnT <= 1.3, okComp = cfg.jefe !== 'oraculo' || r.completed === true;
+    const okEstado = r.estados.includes(cfg.fin), okInv = r.invulnT <= 1.3, okComp = !cfg.completado || r.completed === true;
     return {
       prep, ok: okEstado && okInv && okComp, razon: !!r.salio && !okEstado,
       detalle: `estados vistos {${r.estados.join(', ')}} (esperado incluir ${cfg.fin}); invulnT ${r.invulnT} (esperado ≤ 1,3)` +
-        (cfg.jefe === 'oraculo' ? `; completed ${r.completed} (esperado true)` : '') +
+        (cfg.completado ? `; completed ${r.completed} (esperado true)` : '') +
         `; ${r.salio ? `salió en el paso ${r.salio} hacia ${r.salaFinal}` : 'puerta cerrada durante dying'}`,
     };
   } })),
@@ -364,11 +371,199 @@ const CASOS = [
         `recordSafe ${r.safeEnBloque ? `guardó el punto seguro sobre el bloque de fase (${r.stx},${r.sty})` : `dejó el punto seguro en (${r.stx},${r.sty}), fuera del bloque`}` };
   } },
 
+  { id: 'C-02', nombre: 'Mapa: todas las salas alcanzables desde el inicio', pendiente: 'C-02', async run(pg) {
+    // Inundado del hueco del jugador (1×2 baldosas) sobre la rejilla global, sin gravedad: condición NECESARIA de alcanzabilidad.
+    // Puertas y bloques de fase cuentan como paso; muros rompibles y sellos, como sólidos (pase 1) o como paso (pase 2).
+    const r = await pg.ejecutar(() => {
+      const W = GAME.World, rooms = W.rooms, cells = new Map(), owner = new Map(), solapes = new Set(), rompible = new Set();
+      for (const r of rooms) {
+        for (const w of r.walls) for (let j = w.y; j < w.y + w.h; j++) for (let i = w.x; i < w.x + w.w; i++) rompible.add((r.ox + i) + ',' + (r.oy + j));
+        for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+          const k = (r.ox + x) + ',' + (r.oy + y);
+          if (owner.has(k)) { solapes.add(owner.get(k) + '/' + r.id); continue; }
+          owner.set(k, r.id); cells.set(k, r.phaseKeys.has(x + ',' + y) ? 0 : r.grid[y][x]);
+        }
+      }
+      const libre = (x, y, rb) => { const k = x + ',' + y; if (!cells.has(k)) return false; return cells.get(k) !== 1 || (rb && rompible.has(k)); };
+      const inalcanzables = rb => {
+        const s = W.byId.santuario, x0 = s.ox + 14, y0 = s.oy + 14, seen = new Set([x0 + ',' + y0]), q = [[x0, y0]];
+        while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+          if (!seen.has(k) && libre(nx, ny, rb) && libre(nx, ny - 1, rb)) { seen.add(k); q.push([nx, ny]); } } }
+        const alc = new Set(); for (const k of seen) alc.add(owner.get(k));
+        return rooms.filter(r => !alc.has(r.id)).map(r => ({ id: r.id, secreta: !!r.secret }));
+      };
+      return { salas: rooms.length, solapes: [...solapes], sinRomper: inalcanzables(false), rompiendo: inalcanzables(true) };
+    });
+    const noSecretas = r.sinRomper.filter(x => !x.secreta);
+    const ok = !r.solapes.length && !noSecretas.length && !r.rompiendo.length;
+    const lista = a => a.length ? `${a.length} (${a.slice(0, 4).map(x => x.id).join(', ')}${a.length > 4 ? ', …' : ''})` : '0';
+    return { prep: { ok: r.salas > 0, motivo: 'sin salas' }, ok, razon: noSecretas.some(x => x.id === 'viaSombra'),
+      detalle: `inalcanzables sin romper sellos (no secretas): ${lista(noSecretas)}; rompiendo todo: ${lista(r.rompiendo)}; solapes: ${r.solapes.length} (esperado 0 / 0 / 0)` };
+  } },
+
+  { id: 'C-02', nombre: 'Del Pozo del Eco a la Galería Suspendida', pendiente: 'C-02', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, gal = GAME.World.byId.galeria;
+      GAME.noEnemies = true;
+      G.newGame(); G.secrets.add('celeste'); G.secrets.add('cargado'); G.applyUpgrades();   // con todas las habilidades
+      GAME.warp('pozo', 16, 7); G.state = 'play'; const p = G.player; p.sitting = false;
+      GAME.step(10, []);
+      const inicio = { sala: G.room.id, enSuelo: p.onGround };
+      let entro = false, maxX = -99;
+      const salas = new Set();
+      const gestos = [['right'], ['right', 'jump'], ['right', 'dash'], ['right', 'jump', 'dash']];
+      for (const g of gestos) for (let i = 0; i < 90; i++) {
+        GAME.step(1, i % 30 < 12 ? g : ['right']); salas.add(G.room.id);
+        if (G.room === gal) { entro = true; maxX = Math.max(maxX, (p.x + p.w) / 16 - gal.ox); }
+      }
+      return { inicio, entro, maxX: +maxX.toFixed(2), salas: [...salas] };
+    });
+    const prep = { ok: r.inicio.sala === 'pozo' && r.inicio.enSuelo && r.entro, motivo: `inicio en ${r.inicio.sala} (en suelo=${r.inicio.enSuelo}); entró en la Galería=${r.entro}` };
+    const ok = r.maxX >= 8 || r.salas.includes('viaSombra');
+    return { prep, ok, razon: r.maxX <= 1.5,
+      detalle: `borde derecho máximo dentro de la Galería: baldosa ${r.maxX} (esperado ≥ 8, pasada la repisa de entrada); salas recorridas: ${r.salas.join(' → ')}` };
+  } },
+
+  { id: 'A-03', nombre: 'Invulnerabilidad tras vencer a los 6 minijefes', pendiente: 'A-03', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, W = GAME.World, res = [];
+      GAME.noEnemies = true;
+      for (const [sala, key] of [['arenaUmbra', 'umbra'], ['arenaAureo', 'aureola'], ['arenaCentinela', 'centinela'], ['arenaCapataz', 'capataz'], ['arenaNube', 'nube'], ['arenaEspina', 'espina']]) {
+        G.newGame(); G.secrets.add('celeste'); G.applyUpgrades();
+        const b0 = W.byId[sala].objs.find(o => o.type === 'boss');
+        GAME.warp(sala, b0.tx - 6, b0.ty); G.state = 'play'; const p = G.player; p.sitting = false; p.maxHp = p.hp = 30;
+        let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+        const b = G.boss;
+        if (!b || b.state !== 'idle') { res.push({ key, prep: false, motivo: `no llegó a idle (${b ? b.state : 'sin jefe'})` }); continue; }
+        b.hp = 1; b.hurt(1, p, 'g1');
+        const enDying = b.state === 'dying';
+        GAME.step(600, []);                         // se queda en la sala, sin moverse: 10 s
+        res.push({ key, prep: enDying && b.dead && G.room.id === sala, motivo: `dying=${enDying}, animación terminada=${b.dead}, sala=${G.room.id}`, invulnT: +p.invulnT.toFixed(1) });
+      }
+      return res;
+    });
+    const malPrep = r.find(x => !x.prep);
+    if (malPrep) return { prep: { ok: false, motivo: `${malPrep.key}: ${malPrep.motivo}` } };
+    const malos = r.filter(x => x.invulnT > 1.3);
+    return { prep: { ok: true }, ok: !malos.length, razon: malos.length > 0,
+      detalle: `invulnT 10 s después de vencerlos sin salir de la sala: ${r.map(x => `${x.key} ${x.invulnT}`).join(' · ')} (esperado ≤ 1,3)` };
+  } },
+
+  { id: 'A-04', nombre: 'Las puertas de las arenas encierran al jugador', pendiente: 'A-04', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, W = GAME.World;
+      // 1) Análisis: puertas activas como sólidas, inundado 1×2 desde el jefe; ¿se alcanza algo fuera de la sala?
+      const fugas = [];
+      for (const r of W.rooms) {
+        const b = r.objs.find(o => o.type === 'boss'); if (!b) continue;
+        const tipo = (x, y) => { const rr = W.rooms.find(q => x >= q.ox && y >= q.oy && x < q.ox + q.w && y < q.oy + q.h); if (!rr) return 1;
+          const lx = x - rr.ox, ly = y - rr.oy; if (rr === r && r.doors.some(d => lx >= d.x && ly >= d.y && lx < d.x + d.w && ly < d.y + d.h)) return 1; return rr.grid[ly][lx]; };
+        const x0 = r.ox + Math.floor(b.tx), y0 = r.oy + b.ty - 1, seen = new Set([x0 + ',' + y0]), q = [[x0, y0]];
+        let fuga = false;
+        while (q.length && !fuga) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+          if (seen.has(k) || tipo(nx, ny) === 1 || tipo(nx, ny - 1) === 1) continue; seen.add(k);
+          if (nx < r.ox || nx >= r.ox + r.w || ny < r.oy || ny >= r.oy + r.h) { fuga = true; break; } q.push([nx, ny]); } }
+        if (fuga) fugas.push(r.id);
+      }
+      // 2) Juego: Arena Áurea, combate activo, caminar hacia la salida
+      GAME.noEnemies = true; G.newGame(); GAME.warp('arenaAureo', 27, 15); G.state = 'play'; const p = G.player; p.sitting = false; p.maxHp = p.hp = 30;
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const activo = !!(G.boss && G.boss.state === 'idle'), puertas = W.byId.arenaAureo.doors.every(d => d.active);
+      let salio = null; for (let i = 0; i < 300; i++) { GAME.step(1, ['right']); if (G.room.id !== 'arenaAureo') { salio = i + 1; break; } }
+      return { fugas, activo, puertas, salio, sala: G.room.id, vencida: !!G.beaten.aureola };
+    });
+    const prep = { ok: r.activo && r.puertas, motivo: `combate activo=${r.activo}, puertas cerradas=${r.puertas}` };
+    return { prep, ok: !r.fugas.length && !r.salio, razon: r.fugas.includes('arenaAureo') && !!r.salio,
+      detalle: `arenas con fuga con las puertas cerradas: ${r.fugas.length ? r.fugas.join(', ') : 'ninguna'}; Arena Áurea: ${r.salio ? `salió en el paso ${r.salio} hacia ${r.sala} sin vencer al jefe` : 'no pudo salir'} (esperado: ninguna fuga)` };
+  } },
+
+  { id: 'A-05', nombre: 'Con Sable Cargado, el tajo sale al pulsar', pendiente: 'A-05', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      const medir = conSable => {
+        G.newGame(); const p = G.player; p.sitting = false; if (conSable) G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
+        const enSuelo = p.onGround, tiene = !!p.hasCharge;
+        GAME.step(1, ['attack']); let pasos = 1;
+        for (let i = 0; i < 5 && !p.atk; i++) { GAME.step(1, ['attack']); pasos++; }    // mantiene 6 pasos (~100 ms, un toque normal)
+        while (!p.atk && pasos < 40) { GAME.step(1, []); pasos++; }
+        return { enSuelo, tiene, pasos: p.atk ? pasos : null };
+      };
+      return { sin: medir(false), con: medir(true) };
+    });
+    const prep = { ok: r.sin.enSuelo && r.con.enSuelo && r.con.tiene && r.sin.pasos === 1, motivo: `control sin Sable: tajo en ${r.sin.pasos} pasos; con Sable activo=${r.con.tiene}` };
+    return { prep, ok: r.con.pasos !== null && r.con.pasos <= 2, razon: r.con.pasos !== null && r.con.pasos > 2,
+      detalle: `pasos desde la pulsación hasta el tajo con un toque de 6 pasos: con Sable ${r.con.pasos}, sin Sable ${r.sin.pasos} (esperado ≤ 2)` };
+  } },
+
+  { id: 'A-01c', nombre: 'Con Sable Cargado, pulsar ATACAR en el hit-stop', pendiente: 'A-01', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, FX = GAME.FX;
+      G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
+      FX.hitStop = 5; GAME.step(1, []); const hs = FX.hitStop;
+      GAME.step(1, ['attack']);                    // pulsación corta dentro del hit-stop
+      let ataco = false, cargo = false;
+      for (let i = 0; i < 30; i++) { GAME.step(1, []); if (p.atk) ataco = true; if (p.charging) cargo = true; }
+      return { hs, tiene: !!p.hasCharge, ataco, cargo };
+    });
+    const prep = { ok: r.hs > 0 && r.tiene, motivo: `hit-stop al pulsar=${r.hs}, Sable activo=${r.tiene}` };
+    return { prep, ok: r.ataco, razon: !r.ataco && !r.cargo,
+      detalle: `tras pulsar en el hit-stop: tajo=${r.ataco}, carga iniciada=${r.cargo} (esperado: tajo)` };
+  } },
+
+  { id: 'A-06', nombre: 'Tempestad: avisos con la misma duración que otros jefes', pendiente: 'A-06', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, out = {};
+      // se entra por x=10: lejos del jefe (x=16) y más allá de cualquier disparador razonable
+      for (const [sala, key] of [['ojoTormenta', 'tempestad'], ['yunque', 'forjador']]) {
+        GAME.noEnemies = true; G.newGame(); GAME.warp(sala, 10, 12); G.state = 'play'; const p = G.player; p.sitting = false; p.maxHp = p.hp = 999;
+        let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+        const b = G.boss; if (!b || b.state !== 'idle') { out[key] = null; continue; }
+        const dur = { shotTel: [], roar: [] }; let cur = null, len = 0;
+        b.hp = Math.floor(b.maxHp / 2) + 1; b.hurt(1, p, 'g1');          // pasa a fase 2: rugido y luego ataques
+        for (let i = 0; i < 3000; i++) { p.hp = 999; p.invulnT = 5; GAME.step(1, []);
+          if (b.state === cur) len++; else { if (dur[cur]) dur[cur].push(len); cur = b.state; len = 1; } }
+        out[key] = { roar: dur.roar[0] || null, shotTel: dur.shotTel[0] || null };
+      }
+      return out;
+    });
+    const t = r.tempestad, f = r.forjador;
+    if (!t || !f || !t.shotTel || !f.shotTel || !t.roar || !f.roar) return { prep: { ok: false, motivo: `no se midieron los dos jefes: ${JSON.stringify(r)}` } };
+    const ok = Math.abs(t.shotTel - f.shotTel) <= 1 && Math.abs(t.roar - f.roar) <= 1;
+    return { prep: { ok: true }, ok, razon: t.shotTel * 2 <= f.shotTel + 1,
+      detalle: `pasos de aviso de disparo (fase 2): Tempestad ${t.shotTel}, Forjador ${f.shotTel}; rugido: Tempestad ${t.roar}, Forjador ${f.roar} (esperado: iguales ±1)` };
+  } },
+
+  { id: 'M-09', nombre: 'Bancos dentro de arenas: sin encierro ni reinicio del jefe', pendiente: 'M-09', async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game, W = GAME.World, res = [];
+      GAME.noEnemies = true;
+      for (const r of W.rooms) {
+        const bn = r.objs.find(o => o.type === 'bench'), bo = r.objs.find(o => o.type === 'boss');
+        if (!bn || !bo) continue;
+        G.newGame(); G.respawn = { room: r.id, tx: bn.tx, ty: bn.ty }; G.spawnAtRespawn(); G.state = 'play';
+        GAME.step(30, []);
+        res.push({ sala: r.id, tx: bn.tx, jefe: G.boss ? G.boss.state : 'ninguno', bloqueo: r.doors.some(d => d.kind === 'lock' && d.active) });
+      }
+      // sentarse en mitad del combate (Arena del Capataz)
+      G.newGame(); GAME.warp('arenaCapataz', 9, 12); G.state = 'play'; const p = G.player; p.sitting = false; p.maxHp = 8; p.hp = 2;   // activa el combate lejos del banco
+      let n = 0; while (n < 400 && !(G.boss && G.boss.state === 'idle')) { GAME.step(1, []); n++; }
+      const activo = !!(G.boss && G.boss.state === 'idle');
+      if (activo) { G.boss.hp = 5; p.x = W.byId.arenaCapataz.px + 5 * 16 - 5; p.vx = 0; GAME.step(5, []); GAME.step(1, ['up']); }
+      return { res, activo, hp: p.hp, jefeHp: G.boss ? G.boss.hp : null };
+    });
+    if (!r.res.length || !r.activo) return { prep: { ok: false, motivo: `arenas con banco: ${r.res.length}; combate activo en el Capataz=${r.activo}` } };
+    const encierran = r.res.filter(x => x.bloqueo);
+    const reinicia = r.jefeHp !== 5;
+    return { prep: { ok: true }, ok: !encierran.length && !reinicia, razon: encierran.length > 0 || reinicia,
+      detalle: `al reaparecer, el combate empieza y cierra la puerta en ${encierran.length}/${r.res.length} arenas (${encierran.map(x => x.sala).join(', ')}); ` +
+        `sentarse en combate: jugador ${r.hp} HP, jefe ${r.jefeHp} HP (esperado: 0 encierros y el jefe sigue en 5)` };
+  } },
+
   { id: 'M-07', nombre: 'completed sobrevive a continueGame + saveGame', pendiente: 'M-07', async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game, KEY = 'hojaCarmesi.save.v1';
       localStorage.setItem(KEY, JSON.stringify({ v: 1, level: 3, respawn: { room: 'antecamara', tx: 15, ty: 12 }, maxHp: 5,
-        beaten: { guardian: true, heraldo: true, oraculo: true }, secrets: ['celeste'], visited: ['antecamara'], playTime: 600, completed: true }));
+        beaten: { guardian: true, heraldo: true, oraculo: true, forjador: true, tempestad: true, raiz: true, ecos: true }, secrets: ['celeste', 'cargado'], visited: ['antecamara'], playTime: 600, completed: true }));
       const antes = JSON.parse(localStorage.getItem(KEY)).completed;
       G.continueGame();
       const cargo = G.state === 'play' && G.room && G.room.id === 'antecamara';
