@@ -548,6 +548,68 @@ const CASOS = [
       detalle: `altura del salto ${r.altura} px (esperado > 2: la pulsación cuenta; y < ${(r.completo / 2).toFixed(1)}: la suelta recorta; salto completo ${r.completo} px)` };
   } },
 
+  { id: 'B-16', nombre: 'Con Sable: la pose muestra el ataque en curso (combo g1 → g2 → g3)', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      GAME.noEnemies = true; G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
+      const tipos = [], discrepancias = []; let ultimo = null;
+      for (let toque = 0; toque < 3; toque++) {
+        for (let i = 0; i < 6; i++) {                 // cada toque dura 6 pasos (~100 ms), como un dedo real
+          GAME.step(1, ['attack']);
+          if (p.atk && p.atk !== ultimo) { tipos.push(p.atk.type); ultimo = p.atk; }
+          if (p.atk && p.anim() !== p.atk.type) discrepancias.push(`${p.atk.type}→${p.anim()}`);
+        }
+        for (let i = 0; i < 3; i++) { GAME.step(1, []); if (p.atk && p.atk !== ultimo) { tipos.push(p.atk.type); ultimo = p.atk; } if (p.atk && p.anim() !== p.atk.type) discrepancias.push(`${p.atk.type}→${p.anim()}`); }
+      }
+      return { tiene: !!p.hasCharge, tipos, discrepancias: [...new Set(discrepancias)] };
+    });
+    const prep = { ok: r.tiene && r.tipos.length >= 1, motivo: `Sable activo=${r.tiene}, tajos=${r.tipos.length}` };
+    return { prep, ok: r.tipos.slice(0, 3).join(',') === 'g1,g2,g3' && !r.discrepancias.length,
+      detalle: `tajos ${r.tipos.join(' → ')}; pasos con pose distinta del ataque: ${r.discrepancias.length ? r.discrepancias.join(', ') : 'ninguno'} (esperado g1 → g2 → g3 y ninguno)` };
+  } },
+
+  { id: 'B-16', nombre: 'Con Sable: un toque corto no dibuja el aura de carga', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      GAME.noEnemies = true; G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('cargado'); G.applyUpgrades(); GAME.step(20, []);
+      // Contexto 2D simulado: registra los círculos (el aura es el único arco del jugador fuera de la curación)
+      let arcos = 0;
+      const ctx = new Proxy({}, { get: (o, k) => k === 'arc' ? () => { arcos++; } : (k in o ? o[k] : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
+      const dibuja = () => { p.healing = false; p.draw(ctx); };
+      for (let i = 0; i < 6; i++) { GAME.step(1, ['attack']); dibuja(); }      // toque de 6 pasos (0,1 s)
+      for (let i = 0; i < 10; i++) { GAME.step(1, []); dibuja(); }
+      const arcosToque = arcos; arcos = 0;
+      GAME.step(30, []);
+      for (let i = 0; i < 30; i++) { GAME.step(1, ['attack']); dibuja(); }      // control: mantener 0,5 s sí debe dibujar el aura
+      GAME.step(5, []);
+      return { tiene: !!p.hasCharge, arcosToque, arcosMantener: arcos };
+    });
+    const prep = { ok: r.tiene && r.arcosMantener > 0, motivo: `Sable activo=${r.tiene}; el control (mantener 0,5 s) dibujó ${r.arcosMantener} arcos` };
+    return { prep, ok: r.arcosToque === 0, detalle: `arcos de aura dibujados en un toque de 0,1 s: ${r.arcosToque} (esperado 0; manteniendo 0,5 s: ${r.arcosMantener})` };
+  } },
+
+  { id: 'A-05', nombre: 'Con Sable: ATACAR mantenido en el aire → tajo aéreo al pulsar (reporte del dueño)', pendiente: null, async run(pg) {
+    const r = await pg.ejecutar(() => {
+      const G = GAME.Game;
+      GAME.noEnemies = true; G.newGame(); const p = G.player; p.sitting = false; G.secrets.add('celeste'); G.secrets.add('cargado'); G.applyUpgrades();
+      GAME.step(20, []);
+      const enSuelo = p.onGround, tipos = [];
+      let ultimo = null, aereo = null, aterrizo = false, poseAerea = null;
+      GAME.step(1, ['right', 'jump']); GAME.step(7, ['right', 'jump']);
+      const enAireAlPulsar = !p.onGround;
+      for (let i = 0; i < 90; i++) {                                    // ATACAR pulsado y mantenido hasta después de aterrizar
+        GAME.step(1, ['right', 'jump', 'attack'].slice(0, i < 20 ? 3 : 0).concat(i >= 20 ? ['attack'] : []));
+        if (p.atk && p.atk !== ultimo) { tipos.push(`${p.atk.type}(${p.onGround ? 'suelo' : 'aire'})`); ultimo = p.atk; if (!p.onGround && aereo === null) { aereo = p.atk.type; poseAerea = p.anim(); } }
+        if (p.onGround) aterrizo = true;
+      }
+      GAME.step(20, []);
+      return { enSuelo, enAireAlPulsar, aterrizo, tipos, aereo, poseAerea };
+    });
+    const prep = { ok: r.enSuelo && r.enAireAlPulsar && r.aterrizo, motivo: `en suelo al inicio=${r.enSuelo}, en el aire al pulsar=${r.enAireAlPulsar}, aterrizó con ATACAR pulsado=${r.aterrizo}` };
+    return { prep, ok: ['air', 'up', 'down'].includes(r.aereo) && r.poseAerea === r.aereo,
+      detalle: `tajos: ${r.tipos.join(' ') || 'ninguno'}; tajo en el aire=${r.aereo}, pose=${r.poseAerea} (esperado: air en el aire, con pose air)` };
+  } },
+
   { id: 'A-02', nombre: 'Punto seguro sobre bloque de fase + cambio de fase', pendiente: 'A-02', async run(pg) {
     const r = await pg.ejecutar(() => {
       const G = GAME.Game;

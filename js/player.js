@@ -364,8 +364,8 @@ class Player {
     if (this.sitting) return 'sit';
     if (this.hurtT > 0) return 'hurt';
     if (this.healing) return 'heal';
+    if (this.atk) return this.atk.type;                       // el ataque en curso manda sobre la pose de carga
     if (this.charging) return this.chargeT >= 0.7 ? 'g3' : 'g1';
-    if (this.atk) return this.atk.type;
     if (this.dashT > 0) return this.groundDash ? 'dash' : 'airdash';
     if (this.sliding) return 'wall';
     if (!this.onGround) return this.vy < 0 ? 'jump' : 'fall';
@@ -416,7 +416,7 @@ class Player {
     }
     const flash = this.hurtT > 0 && Math.floor(this.hurtT * 30) % 2 === 0 ? '#ffffff' : null;
     drawKaen(ctx, this.cx, this.y + this.h, this.facing, this.anim(), this.animT, flash);
-    if (this.charging) {
+    if (this.charging && this.chargeT > 0.12) {              // aura solo cuando la carga ya es intencionada (no en un toque)
       const k = Math.min(1, this.chargeT / 0.7), ready = this.chargeT >= 0.7;
       const sx = this.cx + this.facing * 12, sy = this.cy - 2;
       ctx.globalAlpha = 0.35 + k * 0.45;
